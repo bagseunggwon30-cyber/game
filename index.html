@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>뒷면 아르바이트 — BACKSIDE PART-TIMER</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="screen" width="384" height="216"></canvas>
+    <div id="loading">불러오는 중...</div>
+  </div>
+
+  <!-- 터치 컨트롤 (터치 기기에서만 표시) -->
+  <div id="touch">
+    <div class="pad">
+      <button data-key="up" class="d up">▲</button>
+      <button data-key="left" class="d left">◀</button>
+      <button data-key="right" class="d right">▶</button>
+      <button data-key="down" class="d down">▼</button>
+    </div>
+    <div class="acts">
+      <button data-key="d" class="a b4">V<small>아이템</small></button>
+      <button data-key="c" class="a b3">C<small>뒤집기</small></button>
+      <button data-key="b" class="a b2">X<small>공격</small></button>
+      <button data-key="a" class="a b1">Z<small>점프</small></button>
+    </div>
+    <button data-key="pause" class="pause">II</button>
+  </div>
+
+  <script src="js/engine/util.js"></script>
+  <script src="js/engine/input.js"></script>
+  <script src="js/engine/audio.js"></script>
+  <script src="js/engine/gfx.js"></script>
+  <script src="js/data/content.js"></script>
+  <script src="js/data/story.js"></script>
+  <script src="js/data/sprites.js"></script>
+  <script src="js/game/state.js"></script>
+  <script src="js/game/level.js"></script>
+  <script src="js/game/entities.js"></script>
+  <script src="js/game/boss.js"></script>
+  <script src="js/game/ui.js"></script>
+  <script src="js/game/mission.js"></script>
+  <script src="js/game/hub.js"></script>
+  <script src="js/game/scenes.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
