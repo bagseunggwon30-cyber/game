@@ -342,6 +342,17 @@ class Enemy {
         this.facing = sign(this.vx) || this.facing;
         break;
       }
+      case 'wander': {
+        // 웃는 손님: 천천히 서성일 뿐 (공격하면 안 된다)
+        this.vx = approach(this.vx, this.dir * this.spd, 0.1);
+        this.vy = Math.min(MAXFALL, this.vy + GRAV);
+        const aheadX = this.dir > 0 ? this.x + this.w + 2 : this.x - 2;
+        if (this.onGround && lvl.get(this.layer, Math.floor(aheadX / TS), Math.floor((this.y + this.h + 2) / TS)) === T_EMPTY) this.dir *= -1;
+        moveBody(this, lvl, this.layer);
+        if (this.hitWall || Math.random() < 0.004) this.dir *= -1;
+        this.facing = adx < 80 ? sign(dx) || 1 : this.dir;
+        break;
+      }
       case 'turret': {
         this.y = this.homeY + Math.sin(this.t * 0.05) * 2;
         this.facing = sign(dx) || 1;
@@ -413,11 +424,20 @@ class Enemy {
     }
     if (this.y > lvl.H * TS + 40) { this.dead = true; return; }
     // 접촉 피해
-    if (sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
+    if (this.dmg > 0 && sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
   }
 
   hurt(dmg, dir, stun = 0, crit = false) {
     const sc = this.sc;
+    if (this.type === 'smiler') {
+      // 웃는 손님을 공격했다 — 미소가 찢어진다
+      this.dead = true;
+      Sound.play('kill');
+      for (let i = 0; i < 18; i++) sc.particles.push({ x: this.cx, y: this.cy, vx: rnd(-2, 2), vy: rnd(-3, 1), life: 30, col: pickR(['#f4e8de', '#c41e3a', '#0b0b10']), size: 2, g: 0.1 });
+      sc.spawnEnemy('follower', this.x, this.y, 'back');
+      sc.ruleViolate('noHitSmile', '웃는 손님을 공격했다');
+      return;
+    }
     dmg = Math.round(dmg);
     this.hp -= dmg;
     this.flash = 8;
@@ -451,7 +471,7 @@ class Enemy {
     const def = this.def;
     switch (def.sprite) {
       case 'noise': spr = SPR.noise[Math.floor(this.t / 4) % 4]; break;
-      case 'follower': case 'echo': {
+      case 'follower': case 'echo': case 'smiler': {
         const set = SPR[def.sprite];
         const moving = Math.abs(this.vx) > 0.2;
         const fi = !this.onGround && def.sprite === 'follower' ? 6 : moving ? 2 + Math.floor(this.t / 7) % 4 : Math.floor(this.t / 30) % 2;

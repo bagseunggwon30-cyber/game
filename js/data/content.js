@@ -73,6 +73,7 @@ const ENEMIES = {
   notif: { name: '읽지 않은 알림', hp: 6, dmg: 6, san: 2, spd: 1.5, ai: 'swarm', w: 10, h: 10, layer: 'back', sprite: 'notif', score: 1, jam: 0.3 },
   watcher: { name: '등 뒤의 사람', hp: 34, dmg: 16, san: 8, spd: 2.4, ai: 'watcher', w: 10, h: 32, layer: 'back', sprite: 'watcher', score: 3 },
   crawler: { name: '기어다니는 손', hp: 10, dmg: 8, san: 1, spd: 1.6, ai: 'hopper', w: 12, h: 8, layer: 'back', sprite: 'crawler', score: 1 },
+  smiler: { name: '웃는 손님', hp: 20, dmg: 0, san: 0, spd: 0.35, ai: 'wander', w: 10, h: 22, layer: 'front', sprite: 'smiler', score: 0 },
   echo: { name: '잔향', hp: 12, dmg: 6, san: 4, spd: 0.5, ai: 'drift', w: 10, h: 22, layer: 'front', sprite: 'echo', score: 1 },
 };
 
@@ -106,6 +107,9 @@ const ARTIFACTS = {
   frame: { name: '빈 액자', icon: 'frame', rarity: 2, from: 'm45', eff: { vit: 1, mnd: 1, str: 1, agi: 1, per: 1, luk: 1 }, desc: '안에 들어 있던 사진이 사라졌다. 액자는 새 얼굴을 기다린다.' },
   erased: { name: '지워진 이름표', icon: 'erased', rarity: 2, from: 'm13', eff: { mnd: 2, per: 1 }, ability: 'sanLeech', desc: '출석부에서 찢겨 나온 이름. 지워진 자리에서 아직 누가 대답한다.' },
   mincard: { name: '민재의 명찰', icon: 'mincard', rarity: 2, from: 'mtteum', eff: { str: 2, vit: 1 }, story: true, desc: '"박민재 / 청명관리 현장지원". 뒷면에 볼펜으로 적혀 있다: "다 먹이지 마."' },
+  rulebook: { name: '근무 수칙서 원본', icon: 'rulebook', rarity: 1, from: 'm3am', eff: { per: 1 }, ability: 'ruleSense', story: true, desc: '여섯 번째 줄이 손톱으로 긁혀 있다. 들고 있으면 거짓 수칙이 붉게 번져 보인다.' },
+  redknob: { name: '빨간 문고리', icon: 'redknob', rarity: 1, from: 'm45', eff: { luk: 2 }, story: true, desc: '존재하지 않는 101호의 문고리. 쥐고 있으면 "열지 말아야 할 문"이 먼저 보인다.' },
+  silentrec: { name: '대답하지 않은 녹음기', icon: 'silentrec', rarity: 2, from: 'msmile', eff: { mnd: 2, per: 1 }, story: true, desc: '마지막 방송의 녹음본. 재생하면 누군가 이름을 부르고, 아무도 대답하지 않는다.' },
   idcard: { name: '청명 사원증', icon: 'idcard', rarity: 2, from: 'mcheong', eff: {}, story: true, desc: '사진 칸에 아무 얼굴도 없다. 누구든 될 수 있다.' },
 };
 const RARITY = [
@@ -119,6 +123,7 @@ const ABILITIES = {
   backSight: { name: '이면 시야', desc: '표면에서도 뒷면의 존재가 희미하게 보인다.' },
   quickflip: { name: '빠른 전환', desc: '뒤집기 대기 시간이 줄어든다.' },
   sanLeech: { name: '대답', desc: '뒷면의 존재를 쓰러뜨리면 정신력을 회복한다.' },
+  ruleSense: { name: '수칙 감별', desc: '근무 수칙표의 거짓 수칙이 처음부터 표시된다.' },
 };
 
 // 소모품 (편의점)
@@ -165,6 +170,7 @@ const OBJECTIVES = {
   resolve: { name: '원인해소', desc: '흩어진 단서를 모아 괴담의 원인을 찾아 해소한다.', col: '#62d6e8' },
   erase: { name: '말소', desc: '괴담의 핵이 된 존재를 찾아 말소한다.', col: '#ff5a6a' },
   stabilize: { name: '안정화', desc: '현장의 균열 3곳에 안정화 앵커를 설치한다.', col: '#6fd08c' },
+  patrol: { name: '야간 근무', desc: '근무 수칙을 지키며 순찰 지점을 확인하고 06:00까지 버틴다.', col: '#f2c230' },
   deep: { name: '심층 탐사', desc: '뒷면 깊이 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다.', col: '#b86cff' },
   descend: { name: '하강', desc: '더 깊은 균열을 찾아 내려간다.', col: '#b86cff' },
 };
@@ -241,3 +247,57 @@ const WEEK_MODS = {
   flood: { name: '뒷면 범람', col: '#b86cff', desc: '뒷면 정신력 소모 +25%. 전파 오염 구역이 생긴다.' },
 };
 const WEEK_QUOTA = 4;   // 주간 평가: 이번 주 성공한 현장 수
+
+// ───── 근무 수칙 (규칙 괴담 알바) ─────
+// text: 진짜 수칙(장소별 문구), fake: 괴담이 끼워 넣은 거짓 문구. 판정은 항상 진짜 기준.
+const RULES = {
+  greet: {
+    text: { store: '손님이 들어오면(딸랑) 3초 안에 "어서 오세요"라고 인사하세요. (↑)', pcbang: '입구 종이 울리면 3초 안에 "어서 오세요"라고 인사하세요. (↑)', subway: '안내 종이 울리면 3초 안에 고개 숙여 인사하세요. (↑)', default: '종소리가 들리면 3초 안에 인사하세요. (↑)' },
+    fake: '종소리가 들려도 절대 인사하지 마세요. 손님인 척하는 것입니다.',
+  },
+  noAnswer: {
+    text: { school: '출석을 부르는 목소리에 대답하지 마세요.', default: '누가 이름을 불러도 대답하지 마세요. 아는 목소리여도요.' },
+    fake: '이름을 부르면 반드시 대답하세요. 무시하면 화를 냅니다.',
+  },
+  flicker: {
+    text: { pcbang: '모니터가 한꺼번에 깜빡이면 즉시 표면으로 나가세요.', default: '형광등이 깜빡이면 즉시 표면으로 나가세요.' },
+    fake: '형광등이 깜빡이면 뒷면으로 피하세요. 그쪽이 안전합니다.',
+  },
+  noLookBack: {
+    text: { default: '뒤에서 발소리가 따라오면 절대 뒤돌아보지 마세요. (왼쪽을 보지 마세요)' },
+    fake: '뒤에서 발소리가 들리면 반드시 뒤를 확인하세요.',
+  },
+  stopAt3: {
+    text: { default: '새벽 3시 정각에는 5초 동안 아무것도 하지 마세요.' },
+    fake: '새벽 3시 정각이 되면 최대한 빨리 움직이세요.',
+  },
+  stayFront: {
+    text: { default: '뒷면에 30초 넘게 연속으로 머무르지 마세요.' },
+    fake: null,
+  },
+  noRedDoor: {
+    text: { default: '빨간 문은 절대 열지 마세요. 출구는 하나뿐입니다.' },
+    fake: '퇴근할 때는 빨간 문을 이용하세요. 지름길입니다.',
+  },
+  noHitSmile: {
+    text: { default: '웃고 있는 손님은 절대 공격하지 마세요.' },
+    fake: '웃고 있는 손님은 보이는 대로 쫓아내세요. (공격)',
+  },
+};
+function ruleText(id, theme) { const t = RULES[id].text; return t[theme] || t.default; }
+const RULE_MAX_VIOL = 3;
+
+// 반복 꿀알바: 장소별 시나리오
+const RULE_SCENES = {
+  store: { title: '[꿀알바] 새벽마트 야간 대타 — 수칙만 지키면 OK', pool: ['greet', 'noAnswer', 'flicker', 'noHitSmile', 'stopAt3', 'noRedDoor'],
+    intro: '편의점 야간 대타. 손님은 거의 없다. 대신, 카운터 밑에 근무 수칙이 붙어 있다.' },
+  apartment: { title: '[꿀알바] 은하맨션 관리실 야간 순찰', pool: ['noLookBack', 'stopAt3', 'noAnswer', 'noRedDoor', 'stayFront', 'flicker'],
+    intro: '관리실 야간 순찰. 전임자는 수칙표 한 장만 남기고 연락이 끊겼다.' },
+  subway: { title: '[꿀알바] 막차 이후 역사 순찰 — 경력 무관', pool: ['noLookBack', 'flicker', 'stopAt3', 'greet', 'stayFront', 'noRedDoor'],
+    intro: '막차가 끊긴 역사 순찰. 안내판 뒤에 코팅된 수칙표가 붙어 있다.' },
+  school: { title: '[꿀알바] 구 한별고 야간 경비 (수칙 준수 필수)', pool: ['noLookBack', 'noAnswer', 'stopAt3', 'flicker', 'stayFront', 'noRedDoor'],
+    intro: '폐교 야간 경비. 경비실 책상 위에 누렇게 바랜 수칙표가 있다.' },
+  pcbang: { title: '[꿀알바] 별빛PC방 야간 카운터 — 시급 3배', pool: ['greet', 'noHitSmile', 'flicker', 'noAnswer', 'stayFront', 'stopAt3'],
+    intro: 'PC방 야간 카운터. 모니터 옆에 손글씨 수칙표가 테이프로 붙어 있다.' },
+};
+const RULE_JOB_MUL = 1.6;

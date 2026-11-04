@@ -17,7 +17,7 @@ class MissionScene {
     this.gen = generateMission({
       theme: job.theme, obj: this.obj, diff: this.diff, seed: job.seed + (this.deep ? this.deep.stage * 7919 : 0), luk: this.s.stats.luk, deep: this.deep,
       tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc,
-      weekMod: this.s.weekMod,
+      weekMod: this.s.weekMod, rules: job.rules, patrol: job.patrol,
       boss: this.story && this.story.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
     });
     this.lvl = this.gen.lvl;
@@ -58,6 +58,17 @@ class MissionScene {
     this.noise = Gfx.makeCanvas(VW, VH);
     this.makeNoise();
     // 방 지도 / 체크포인트 / 봉인 열쇠
+    this.side = job.side ? SIDE_BY_ID[job.side] : null;
+    // 근무 수칙 (꿀알바 / 서브 의뢰)
+    if (job.rules) {
+      const len = 200 + this.diff * 25;   // 실제 초: 02:00 → 06:00
+      this.rule = {
+        list: job.rules, clock: 0, clockMax: 240, perFrame: 240 / (len * 60),
+        viol: 0, noteFound: !!this.D.ab.ruleSense, backRun: 0, fireT: 0,
+        patrols: 0, patrolTotal: this.interacts.filter((o) => o.type === 'patrol').length,
+        ev: { flicker: { next: rndi(25, 35) * 60, t: 0 }, steps: { next: rndi(35, 50) * 60, t: 0 }, voice: { next: rndi(40, 60) * 60, t: 0 }, chime: { next: rndi(20, 30) * 60, t: 0 }, three: { t: 0, done: false } },
+      };
+    }
     this.visited = new Set();
     this.curRoom = null;
     this.checkpoint = null; this.cpUsed = false;
@@ -88,9 +99,23 @@ class MissionScene {
 
   enter() {
     Sound.setAmbience('front');
-    const intro = this.story && !this.carry ? this.story.intro : null;
-    if (intro && intro.length) Game.push(new DialogModal(intro, () => this.showStartBanner()));
-    else this.showStartBanner();
+    const intro = (this.story && !this.carry ? this.story.intro : null) || (this.side ? this.side.intro : null) ||
+      (this.job.ruleJob ? [['', RULE_SCENES[this.theme].intro]] : null);
+    const next = () => {
+      if (this.rule) Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), () => this.showStartBanner(), { paper: true }));
+      else this.showStartBanner();
+    };
+    if (intro && intro.length) Game.push(new DialogModal(intro, next));
+    else next();
+  }
+  ruleSheetText() {
+    const R = this.rule;
+    const lines = R.list.map((r, i) => {
+      const shown = r.fake ? RULES[r.id].fake : ruleText(r.id, this.theme);
+      if (R.noteFound && r.fake) return `${i + 1}. ${shown}\n   ✕ 거짓 — 진짜: ${ruleText(r.id, this.theme)}`;
+      return `${i + 1}. ${shown}`;
+    });
+    return lines.join('\n') + `\n\n근무 시간 02:00 ~ 06:00. 수칙을 ${RULE_MAX_VIOL}번 어기면 해고입니다.` + (R.noteFound ? '' : '\n(어딘가에 이전 근무자의 메모가 있다는 소문이 있다.)');
   }
   showStartBanner() {
     this.bannerT = 150;
@@ -187,7 +212,7 @@ class MissionScene {
     this.floatText(p.cx, p.y - 20, '패닉!', '#ff3a5a');
     if (!this.s.flags.hintPanic) { this.s.flags.hintPanic = true; this.showHint('패닉! 몸이 말을 듣지 않고 뒤집기도 안 된다. 진정될 때까지 버텨라.'); }
     if (m.scream) {
-      for (const e of this.enemies) if (!e.dead && e.layer === p.layer && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 80) e.hurt(30, sign(e.cx - p.cx) || 1, 30);
+      for (const e of this.enemies) if (!e.dead && e.type !== 'smiler' && e.layer === p.layer && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 80) e.hurt(30, sign(e.cx - p.cx) || 1, 30);
       if (this.boss && !this.boss.dead && p.layer === 'back' && Math.hypot(this.boss.cx - p.cx, this.boss.cy - p.cy) < 90) this.boss.hurt(30, 1, false);
       for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; this.particles.push({ x: p.cx, y: p.cy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, life: 18, col: '#ff4a5a', size: 2 }); }
     }
@@ -236,6 +261,75 @@ class MissionScene {
     }
     if (panic && this.time % 20 === 0) { Gfx.shake(1, 6); if (this.time % 40 === 0) Sound.play('heart'); }
   }
+  // ───── 근무 수칙: 시계 · 이벤트 · 위반 ─────
+  ruleHas(id) { return !!(this.rule && this.rule.list.some((r) => r.id === id)); }
+  clockText() { const m = Math.floor(this.rule.clock); return `0${2 + Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; }
+  ruleViolate(id, why) {
+    const R = this.rule, p = this.player;
+    if (!R || !this.ruleHas(id) || R.fireT > 0) return;
+    R.viol++;
+    Sound.play('static'); Sound.play('hurt'); Sound.play('boss');
+    Gfx.shake(5, 24);
+    this.jam.hackT = Math.max(this.jam.hackT, 180);
+    this.addFear(30); p.san -= 12;
+    this.glitchT = 20;
+    this.toast(`수칙 위반 — ${why} (${R.viol}/${RULE_MAX_VIOL})`, '#ff3a5a');
+    this.floatText(p.cx, p.y - 24, '수칙 위반', '#ff3a5a');
+    // 어긴 사람을 찾아오는 것
+    for (const dx of [-110, 110, -60, 60]) {
+      const x = p.x + dx * (p.facing > 0 ? 1 : -1);
+      if (!boxHits(this.lvl, 'back', x, p.y - 12, 10, 32)) { this.spawnEnemy('watcher', x, p.y - 12, 'back'); break; }
+    }
+    if (R.viol >= RULE_MAX_VIOL) { R.fireT = 120; this.locked = true; Sound.play('die'); }
+  }
+  updateRules() {
+    const R = this.rule, p = this.player, E = R.ev;
+    if (R.fireT > 0) { if (--R.fireT === 0) this.finish('fired'); return; }
+    R.clock = Math.min(R.clockMax, R.clock + R.perFrame);
+    if (!this.objState.complete && R.clock >= R.clockMax && R.patrols >= R.patrolTotal) this.completeObjective('06:00 — 근무 끝! 퇴근 문으로 →');
+    const busy = () => E.flicker.t > 0 || E.steps.t > 0 || E.chime.t > 0 || E.three.t > 0 || E.voice.t > 0;
+    const start = (k, fn) => { if (!this.ruleHas(k === 'steps' ? 'noLookBack' : k === 'voice' ? 'noAnswer' : k === 'chime' ? 'greet' : 'flicker')) return; if (E[k].t > 0) return; if (--E[k].next > 0) return; if (busy()) { E[k].next = 90; return; } fn(); };
+    // 형광등 깜빡임 → 표면으로
+    start('flicker', () => { E.flicker.t = 240; E.flicker.hit = false; E.flicker.next = rndi(30, 48) * 60; Sound.play('buzz'); });
+    if (E.flicker.t > 0) {
+      E.flicker.t--;
+      if (E.flicker.t % 40 === 0) Sound.play('buzz');
+      if (240 - E.flicker.t > 80 && p.layer === 'back' && !E.flicker.hit) { E.flicker.hit = true; this.ruleViolate('flicker', '깜빡일 때 뒷면에 있었다'); }
+    }
+    // 뒤따라오는 발소리 → 뒤돌아보지 않기
+    start('steps', () => { E.steps.t = 360; E.steps.hit = false; E.steps.next = rndi(35, 55) * 60; });
+    if (E.steps.t > 0) {
+      E.steps.t--;
+      if (E.steps.t % 45 === 0) { Sound.play('steps'); this.floatText(p.cx - p.facing * 30, p.y + 4, '저벅…', '#8a86a0'); }
+      if (360 - E.steps.t > 30 && p.facing < 0 && !E.steps.hit) { E.steps.hit = true; this.ruleViolate('noLookBack', '뒤를 돌아봤다'); }
+    }
+    // 이름을 부르는 목소리 → 대답하지 않기
+    start('voice', () => {
+      E.voice.t = 420; E.voice.next = rndi(40, 60) * 60;
+      const vx = p.x - p.facing * 34;
+      this.voiceObj = { type: 'voice', x: vx, y: p.y - 10, w: 20, h: 32, layer: 'both', done: false };
+      this.interacts.push(this.voiceObj);
+      Sound.play('whisper');
+      this.floatText(vx + 10, p.y - 14, pickR(['하람아…?', '하람 씨, 거기 있어요?', '나야. 민재.', '대답 좀 해 줘…']), '#c8c4d8');
+    });
+    if (E.voice.t > 0 && --E.voice.t === 0 && this.voiceObj) { this.voiceObj.done = true; this.voiceObj = null; }
+    // 종소리 → 3초 안에 인사
+    start('chime', () => { E.chime.t = 180; E.chime.greeted = false; E.chime.next = rndi(28, 42) * 60; Sound.play('chime'); this.floatText(p.cx, p.y - 20, '딸랑—', '#f2d040'); });
+    if (E.chime.t > 0 && --E.chime.t === 0 && !E.chime.greeted) this.ruleViolate('greet', '인사하지 않았다');
+    // 새벽 3시 정각 → 5초 멈춤
+    if (this.ruleHas('stopAt3') && !E.three.done && R.clock >= 60) { E.three.done = true; E.three.t = 300; E.three.hit = false; Sound.play('chime'); Sound.play('heart'); }
+    if (E.three.t > 0) {
+      E.three.t--;
+      const moving = Math.abs(p.vx) > 0.4 || !p.onGround || p.atkT > 0 || p.dashT > 0;
+      if (300 - E.three.t > 40 && moving && !E.three.hit) { E.three.hit = true; this.ruleViolate('stopAt3', '3시 정각에 움직였다'); }
+    }
+    // 뒷면 30초 제한
+    if (this.ruleHas('stayFront')) {
+      R.backRun = p.layer === 'back' ? R.backRun + 1 : 0;
+      if (R.backRun > 30 * 60) { R.backRun = 0; this.ruleViolate('stayFront', '뒷면에 너무 오래 있었다'); }
+    }
+  }
+
   // ───── 통신 교란: 휴대폰(HUD)이 거짓말을 한다 ─────
   updateJam() {
     const p = this.player, J = this.jam;
@@ -379,9 +473,16 @@ class MissionScene {
     return null;
   }
   tryInteract() {
+    const p = this.player;
+    // 종소리가 울리는 동안 ↑ = 인사
+    if (this.rule && this.rule.ev.chime.t > 0 && !this.rule.ev.chime.greeted) {
+      this.rule.ev.chime.greeted = true;
+      Sound.play('select');
+      this.floatText(p.cx, p.y - 16, '어서 오세요!', '#f2d040');
+      return;
+    }
     const o = this.nearInteract();
     if (!o) return;
-    const p = this.player;
     switch (o.type) {
       case 'entry':
         if (this.deep) {
@@ -460,6 +561,37 @@ class MissionScene {
       case 'descend':
         this.reachDescend();
         break;
+      case 'patrol': {
+        o.done = true;
+        const R = this.rule;
+        if (R) R.patrols++;
+        Sound.play('clue');
+        this.toast(R ? `순찰 확인 (${R.patrols}/${R.patrolTotal})` + (R && R.patrols >= R.patrolTotal && R.clock < R.clockMax ? ' — 06:00까지 버티자' : '') : '순찰 확인', COL.yellow);
+        if (R && R.patrols >= R.patrolTotal && R.clock >= R.clockMax && !this.objState.complete) this.completeObjective('06:00 — 근무 끝! 퇴근 문으로 →');
+        break;
+      }
+      case 'reddoor':
+        o.done = true;
+        Sound.play('door');
+        for (let i = 0; i < 20; i++) this.particles.push({ x: o.x + 12, y: o.y + 16, vx: rnd(-2, 2), vy: rnd(-2, 1), life: 30, col: '#c41e3a', size: 2 });
+        this.ruleViolate('noRedDoor', '빨간 문을 열었다');
+        break;
+      case 'voice':
+        o.done = true;
+        if (this.voiceObj === o) this.voiceObj = null;
+        this.floatText(p.cx, p.y - 14, '"…응?"', '#c8c4d8');
+        this.ruleViolate('noAnswer', '부르는 목소리에 대답했다');
+        break;
+      case 'rulenote': {
+        o.done = true;
+        const R = this.rule;
+        if (R) R.noteFound = true;
+        Sound.play('pickup');
+        const fakes = R ? R.list.map((r, i) => [r, i]).filter(([r]) => r.fake) : [];
+        const body = fakes.length ? fakes.map(([r, i]) => `${i + 1}번은 거짓말이다.\n진짜는 이거다: ${ruleText(r.id, this.theme)}`).join('\n\n') : '이번 수칙표에는 거짓말이 없다. ...이번에는.';
+        Game.push(new TextView('이전 근무자의 메모', body + '\n\n— 수칙표는 일시정지 메뉴에서 다시 볼 수 있다.', null, { paper: true }));
+        break;
+      }
       case 'checkpoint':
         o.done = true;
         this.checkpoint = { x: o.x, y: o.y + o.h - p.h, layer: p.layer };
@@ -510,6 +642,11 @@ class MissionScene {
     if (this.obj === 'erase') return o.complete ? '말소 완료' : '핵 말소';
     if (this.obj === 'finale') return '최상층으로';
     if (this.obj === 'descend') return '균열을 찾아 내려가기';
+    if (this.obj === 'patrol' && this.rule) {
+      const R = this.rule;
+      if (o.complete) return '근무 끝 — 퇴근';
+      return R.patrols < R.patrolTotal ? `순찰 ${R.patrols}/${R.patrolTotal}` : '06:00까지 버티기';
+    }
     return '';
   }
 
@@ -591,7 +728,7 @@ class MissionScene {
     this.toast(msg, COL.green);
     Gfx.shake(4, 20);
     // 남은 뒷면 존재 약화
-    for (const e of this.enemies) if (!e.dead && e.layer === 'back' && Math.abs(e.cx - this.player.cx) < 300) e.hurt(999, 1);
+    for (const e of this.enemies) if (!e.dead && e.layer === 'back' && e.type !== 'smiler' && Math.abs(e.cx - this.player.cx) < 300) e.hurt(999, 1);
   }
 
   // 최종장
@@ -646,6 +783,7 @@ class MissionScene {
     const p = this.player;
     if (this.deep && result === 'success') this.run.stagesCleared = this.deep.stages;
     const deep = this.deep ? { cleared: this.run.stagesCleared || 0, stages: this.deep.stages } : null;
+    if (this.rule) this.run.ruleViol = this.rule.viol;
     Game.fadeTo(() => Game.setScene(new ResultScene(this.job, result, this.run, { sanDeath: p.san <= 0, deep })));
   }
 
@@ -699,6 +837,7 @@ class MissionScene {
     if (!p.dead && !this.locked) {
       this.updateMind();
       this.updateJam();
+      if (this.rule) this.updateRules();
       const panic = p.st.has('panic');
       if (p.layer === 'back') {
         let mul = (this.arenaActive ? 0.5 : 1) * (this.s.weekMod === 'flood' ? 1.25 : 1);
@@ -751,6 +890,7 @@ class MissionScene {
         { label: '내 상태', desc: '능력치를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
         { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
         { label: '상태 효과 안내', desc: '공포·패닉·희망 등 버프/디버프 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
+        ...(this.rule ? [{ label: '근무 수칙', desc: '오늘 밤의 근무 수칙표를 다시 본다.', onSelect: () => Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), null, { paper: true })) }] : []),
         { label: '철수 (임무 포기)', col: '#ff8a8a', desc: '즉시 현장을 떠난다. 보수 없음, 신뢰 -5. 주운 아티팩트는 챙긴다.', onSelect: (m) => { m.close(); this.finish('retreat'); } },
       ],
     }));
@@ -1036,7 +1176,7 @@ class MissionScene {
     // 상호작용 안내 (키캡 + 이름)
     if (this.prompt && !this.locked) {
       const o = this.prompt;
-      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문' }[o.type];
+      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문', patrol: '순찰 확인', reddoor: '문 열기', rulenote: '메모 읽기', voice: '대답하기' }[o.type];
       const tx = Math.round(o.x + o.w / 2 - cam.x), ty = Math.round(o.y - 16 - cam.y + Math.sin(this.time * 0.15) * 1.5);
       const w = Gfx.measure(ctx, label, { small: true }) + 22;
       UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
@@ -1151,6 +1291,29 @@ class MissionScene {
         if (this.deep) G.text(ctx, `깊이 ${this.deep.stage + 1}`, cx, y - 12, '#b86cff', { small: true, align: 'center' });
         break;
       }
+      case 'patrol': {
+        G.px(ctx, x + 3, y + 6, 10, 18, '#3a3a48'); G.px(ctx, x + 4, y + 7, 8, 7, o.done ? '#6fd08c' : '#1a1a24');
+        if (!o.done && t % 30 < 15) G.px(ctx, x + 7, y + 9, 2, 2, COL.yellow);
+        G.px(ctx, x + 2, y + 22, 12, 2, '#5a566a');
+        break;
+      }
+      case 'reddoor': {
+        G.px(ctx, x, y, o.w, o.h, '#0b0b10'); G.px(ctx, x + 1, y + 1, o.w - 2, o.h - 1, '#7a0a14'); G.px(ctx, x + 3, y + 3, o.w - 6, o.h - 4, '#a8121e');
+        G.px(ctx, x + o.w - 7, y + 16, 3, 3, '#f2c230');
+        if (t % 90 < 6) { ctx.fillStyle = 'rgba(255,40,60,0.4)'; ctx.fillRect(x - 2, y - 2, o.w + 4, o.h + 2); }
+        break;
+      }
+      case 'rulenote':
+        if (!o.done) { ctx.drawImage(SPR.icon.rulebook, x + 1, y + Math.sin(t * 0.1)); if (t % 50 < 25) { ctx.fillStyle = '#ff5a6a'; ctx.fillRect(x + 12, y - 2, 1, 1); } }
+        break;
+      case 'voice': {
+        if (o.done) break;
+        ctx.globalAlpha = 0.35 + Math.sin(t * 0.2) * 0.15;
+        G.px(ctx, x + 6, y + 2, 8, 8, '#1a1626'); G.px(ctx, x + 4, y + 10, 12, 20, '#1a1626');
+        G.px(ctx, x + 8, y + 5, 1, 1, '#f4f0e6'); G.px(ctx, x + 11, y + 5, 1, 1, '#f4f0e6');
+        ctx.globalAlpha = 1;
+        break;
+      }
       case 'checkpoint': {
         G.px(ctx, x + 6, y + 4, 3, o.h - 4, o.done ? '#6fd08c' : '#5a566a');
         G.px(ctx, x + 2, y, 11, 5, o.done ? '#c8f0d0' : '#8a86a0');
@@ -1262,6 +1425,22 @@ class MissionScene {
       }
       ctx.fillStyle = L === 'back' ? `rgba(255,40,80,${0.25 * f})` : `rgba(255,255,255,${0.25 * f})`;
       ctx.fillRect(0, 0, VW, VH);
+    }
+    // 근무 수칙 이벤트 연출
+    if (this.rule) {
+      const E = this.rule.ev;
+      if (E.flicker.t > 0 && ((this.time >> 2) % 3 === 0 || Math.random() < 0.15)) { ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, VW, VH); }
+      if (E.three.t > 0) {
+        ctx.fillStyle = 'rgba(30,0,10,0.35)'; ctx.fillRect(0, 0, VW, VH);
+        if (!this.big3) this.big3 = Gfx.bigText('03:00', '#ff3a5a', 4);
+        ctx.globalAlpha = 0.6 + Math.sin(this.time * 0.3) * 0.3;
+        ctx.drawImage(this.big3, Math.round((VW - this.big3.width) / 2), 70);
+        ctx.globalAlpha = 1;
+      }
+      if (this.rule.fireT > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${clamp((120 - this.rule.fireT) / 60, 0, 0.85)})`; ctx.fillRect(0, 0, VW, VH);
+        Gfx.text(ctx, '수칙 위반 3회 — 해고되었습니다.', VW / 2, VH / 2 - 6, '#ff5a6a', { align: 'center', bold: true });
+      }
     }
     // 패닉 / 희망 화면 효과
     if (!p.dead && p.st.has('panic')) {
@@ -1430,6 +1609,14 @@ class MissionScene {
       const kw = UI.keycap(ctx, 33, iy + 13, 'V');
       Gfx.text(ctx, '사용', 36 + kw, iy + 13, C.mute, { small: true });
     } else Gfx.text(ctx, '빈 슬롯', 33, iy + 7, C.mute, { small: true });
+    // ── 근무 시계 / 수칙 위반 ──
+    if (this.rule) {
+      const R = this.rule, E = R.ev;
+      const alarm = E.three.t > 0 || E.chime.t > 0;
+      Gfx.text(ctx, this.clockText(), VW / 2, 4, alarm && this.time % 20 < 10 ? '#ff5a6a' : C.text, { align: 'center', bold: true });
+      for (let i = 0; i < RULE_MAX_VIOL; i++) { ctx.fillStyle = i < R.viol ? '#ff3a5a' : 'rgba(255,255,255,0.18)'; ctx.fillRect(VW / 2 - 13 + i * 9, 19, 7, 3); }
+      Gfx.text(ctx, '수칙 위반', VW / 2, 23, C.mute, { align: 'center', small: true });
+    }
     // ── 보스 체력 ──
     if (this.boss && !this.boss.dead) {
       const b = this.boss;

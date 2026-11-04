@@ -485,6 +485,38 @@ function buildRoomMap(spec, seed) {
       out.interacts.push({ type: 'cause', x: wx(c.x) - 6, y: wx(c.y + 1) - 44, w: 28, h: 44, layer: 'back' });
       targets.push([c.x, c.y, 'back']);
     }
+  } else if (finalObj === 'patrol') {
+    // 야간 순찰 지점 (표면/뒷면 번갈아)
+    const n = spec.patrol || 3;
+    spread(n).forEach((r, i) => {
+      const layer = i % 2 ? 'back' : 'front';
+      const s2 = objSpot(r, layer) || floorSpot(r, false, 'both', false);
+      if (!s2) return;
+      out.interacts.push({ type: 'patrol', x: wx(s2.x), y: wx(s2.y + 1) - 24, w: 16, h: 24, layer });
+      targets.push([s2.x, s2.y, layer]);
+    });
+    const ruleIds = (spec.rules || []).map((r) => r.id);
+    // 빨간 문 (열면 안 되는 문)
+    if (ruleIds.includes('noRedDoor')) {
+      for (const r of rng.shuffle(middle.slice()).slice(0, 2)) {
+        const c = floorSpot(r, rng.chance(0.5), 'both');
+        if (c) out.interacts.push({ type: 'reddoor', x: wx(c.x) - 4, y: wx(c.y + 1) - 32, w: 24, h: 32, layer: 'both' });
+      }
+    }
+    // 이전 근무자의 메모 (거짓 수칙을 알려 준다) — 막다른 방 우선
+    if ((spec.rules || []).some((r) => r.fake)) {
+      const r = deadEnds.length ? rng.pick(deadEnds) : rng.pick(middle.length ? middle : rooms);
+      const m = takeMark(r, 'i') || floorSpot(r, rng.chance(0.5), 'front');
+      if (m) { out.interacts.push({ type: 'rulenote', x: wx(m.x), y: wx(m.y + 1) - 14, w: 16, h: 14, layer: 'front' }); targets.push([m.x, m.y, 'front']); }
+    }
+    // 웃는 손님
+    if (ruleIds.includes('noHitSmile')) {
+      for (const r of rng.shuffle(middle.slice()).slice(0, 3 + Math.floor(d / 2))) {
+        const layer = rng.chance(0.5) ? 'front' : 'back';
+        const m = floorSpot(r, rng.chance(0.5), layer);
+        if (m) out.enemies.push({ type: 'smiler', x: wx(m.x) + 2, y: wx(m.y + 1) - 22, layer });
+      }
+    }
   } else if (finalObj === 'descend') {
     const c = floorSpot(goal, true, 'back') || objSpot(goal, 'back');
     if (!c) return fail('descendSpot');
@@ -536,7 +568,7 @@ function buildRoomMap(spec, seed) {
   // 9) 적
   const pool = th.enemies.map((e) => [e, e === 'watcher' ? (d >= 2 ? 1.5 : 0) : e === 'flyer' || e === 'notif' ? 2 : 3]);
   if (spec.weekMod === 'notif') { const n = pool.find((q) => q[0] === 'notif'); if (n) n[1] = 6; else pool.push(['notif', 5]); }
-  const spawnMul = spec.weekMod === 'quiet' ? 0.7 : 1;
+  const spawnMul = (spec.weekMod === 'quiet' ? 0.7 : 1) * (finalObj === 'patrol' ? 0.5 : 1);
   const placeEnemy = (type, m, layer) => {
     const def = ENEMIES[type];
     const air = def.ai === 'float' || def.ai === 'swarm' || def.ai === 'turret';

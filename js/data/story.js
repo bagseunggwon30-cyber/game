@@ -9,6 +9,7 @@ const SPEAKERS = {
   landlord: { name: '집주인', face: 'landlord', col: '#c8a8d8' },
   phone: { name: '틈새 알림', face: null, col: '#62d6e8' },
   ryu: { name: '감사팀 류 과장', face: 'ryu', col: '#9aa8c8' },
+  k: { name: '도시탐정 K', face: 'k', col: '#ff8a7a' },
   '': { name: '', face: null, col: '#f4f0e6' },
   fakeSeo: { name: '서경 팀장', face: 'seo', col: '#c8d0e0' },
 };
@@ -234,6 +235,96 @@ const DAILY_MESSAGES = [
   { id: 'truth8', when: (s) => s.truths.length >= 8, from: 'unknown', text: `조각을 ${EXPOSE_NEED}개 모으면 본사로 가는 길이 보일 거야. 정규직 면접 같은 거 없이도.` },
   { id: 'ch3ryu', when: (s) => storyDone(s, 'c3h'), from: 'ryu', text: '감사팀입니다. 지점 사무동 출입 기록에 귀하의 이름이 있더군요. 곧 뵙겠습니다.' },
 ];
+
+// ───── 서브 의뢰 (근무 수칙 연작) ─────
+// rules: [수칙 id, 거짓 여부]. 순서 = 수칙표 번호
+const SIDE_QUESTS = [
+  // ── 노을: 새벽마트 수칙 ──
+  {
+    id: 'A1', chain: 'A', giver: 'noeul', chapter: 1, after: (s) => storyDone(s, 'c1n'),
+    theme: 'store', diff: 2, patrol: 3, title: '[노을의 부탁] 새벽마트 야간 대타', pay: 140000,
+    rules: [['greet', 0], ['noAnswer', 0], ['flicker', 1], ['noHitSmile', 0]],
+    notify: '하람 씨, 오늘 밤 제 근무 대신 서 줄 수 있어요? 수칙표는 카운터 밑에 있어요. 꼭 지켜요.',
+    intro: [['noeul', '새벽마트 야간 수칙이에요. 제가 쓴 건 아니고, 원래 있던 거예요.'], ['noeul', '근데 하람 씨. 3번은 믿지 마요. 누가 나중에 고쳐 써 놓은 거라.'], ['me', '누가요?'], ['noeul', '...그걸 알면 제가 대타를 부탁했겠어요?']],
+    outro: [['noeul', '무사히 왔네요. 다행이다.'], ['noeul', '그 수칙표, 원래 여섯 줄이었대요. 누가 한 줄을 지우고, 다른 줄 하나를 고쳐 써 넣었어요.'], ['noeul', '지워진 줄이 뭐였는지는... 아무도 몰라요.']],
+    reward: { sp: 1, items: { coffee: 2 } },
+  },
+  {
+    id: 'A2', chain: 'A', giver: 'noeul', chapter: 2, after: (s) => s.sideDone.includes('A1'),
+    theme: 'store', diff: 3, patrol: 4, title: '[노을의 부탁] 지워진 여섯 번째 수칙', pay: 190000,
+    rules: [['greet', 1], ['noAnswer', 0], ['stopAt3', 0], ['noHitSmile', 0], ['noRedDoor', 0]],
+    notify: '수칙표 원본을 찾은 것 같아요. 창고 뒷면에 붙어 있대요. 한 번만 더 부탁해요.',
+    intro: [['noeul', '원래 수칙표를 쓴 사람은 저보다 먼저 일한 언니예요. 새벽 3시 타임 담당.'], ['noeul', '어느 날 근무 끝나고 퇴근 도장을 안 찍었대요. 그 뒤로 새벽 3시마다 손님이 하나 와요.'], ['me', '...영수증을 좋아하는 손님?'], ['noeul', '네. 그 손님이요.']],
+    outro: [['', '창고 뒷면 벽에 붙어 있던 원본 수칙표. 여섯 번째 줄이 손톱으로 긁혀 있다.'], ['', '"6. 퇴근 도장은 반드시 본인이 찍을 것. 다른 누가 대신 찍어 주면, 그건 당신이 아닙니다."'], ['noeul', '...그 언니 도장, 누가 대신 찍어 줬대요. 청명 사람이.']],
+    reward: { sp: 1, artifact: 'rulebook' },
+  },
+  {
+    id: 'A3', chain: 'A', giver: 'noeul', chapter: 3, after: (s) => s.sideDone.includes('A2'),
+    theme: 'store', diff: 4, patrol: 4, title: '[노을의 부탁] 마지막 근무', pay: 240000,
+    rules: [['greet', 0], ['noAnswer', 1], ['flicker', 0], ['stopAt3', 1], ['noHitSmile', 0], ['stayFront', 0]],
+    notify: '저 그만두려고요. 마지막 근무 날, 옆에 있어 줄래요?',
+    intro: [['noeul', '오늘이 마지막이에요. 반쪽 사원증도 태웠어요.'], ['noeul', '근데 이상하죠. 그만둔다고 하니까 수칙이 늘었어요.'], ['noeul', '오늘 수칙 중 두 개는 가짜예요. 어느 건지는... 저도 몰라요.']],
+    outro: [['', '06:00. 셔터가 올라가고, 첫 손님 대신 햇빛이 들어왔다.'], ['noeul', '...끝났다. 진짜로.'], ['noeul', '하람 씨. 나중에 청명을 그만둘 때, 혼자 하지 마요. 저 불러요.']],
+    reward: { sp: 2, money: 100000, flag: 'noeulFree' },
+  },
+  // ── 집주인: 옥탑방 건물 ──
+  {
+    id: 'B1', chain: 'B', giver: 'landlord', chapter: 1, after: (s) => storyDone(s, 's1') && s.day >= 4,
+    theme: 'apartment', diff: 1, patrol: 3, title: '[집주인 부탁] 옥상 물탱크의 노크', pay: 90000,
+    rules: [['noLookBack', 0], ['stopAt3', 0], ['stayFront', 0], ['noAnswer', 0]],
+    notify: '하람 씨~ 그 회사 다닌다며? 우리 건물 물탱크에서 밤마다 노크 소리가 나요. 월세 깎아 줄게.',
+    intro: [['landlord', '밤마다 똑, 똑, 똑. 세 번씩. 우리 남편이 살아 있을 때 문 두드리던 버릇이랑 똑같아요.'], ['landlord', '하람 씨 회사 사람들은 이런 거 잘 안다며? 동네 무당이 수칙도 써 줬어요.']],
+    outro: [['landlord', '어머, 조용해졌네. 고마워요 하람 씨.'], ['landlord', '다음 주 월세는 반만 받을게요. ...근데 그 노크, 진짜 우리 남편이었어요?'], ['me', '...모르는 게 나을 것 같아요.']],
+    reward: { sp: 1, rentDiscount: 0.5 },
+  },
+  {
+    id: 'B2', chain: 'B', giver: 'landlord', chapter: 2, after: (s) => s.sideDone.includes('B1'),
+    theme: 'apartment', diff: 2, patrol: 3, title: '[집주인 부탁] 101호를 찾는 사람', pay: 130000,
+    rules: [['noAnswer', 0], ['noRedDoor', 0], ['flicker', 0], ['noLookBack', 1]],
+    notify: '밤마다 누가 1층에서 101호를 찾아요. 우리 건물엔 101호가 없는데.',
+    intro: [['landlord', '우리 건물은 102호부터 시작해요. 처음 지을 때부터 그랬대요.'], ['landlord', '근데 요즘 밤마다 누가 "101호 계세요?" 하고 불러요. 빨간 문 앞에서.']],
+    outro: [['', '1층 계단 밑. 벽지 아래에 칠해진 빨간 문 자국이 있었다.'], ['', '문패에는 "101 — 청명관리 숙소"라고 적혀 있다.'], ['landlord', '...이 건물, 원래 회사 숙소였대요. 내가 산 게 아니라, 받은 거고.']],
+    reward: { sp: 1, money: 80000, artifact: 'redknob' },
+  },
+  {
+    id: 'B3', chain: 'B', giver: 'landlord', chapter: 3, after: (s) => s.sideDone.includes('B2'),
+    theme: 'apartment', diff: 3, patrol: 4, title: '[집주인 부탁] 건물의 생일', pay: 170000,
+    rules: [['stopAt3', 0], ['noAnswer', 0], ['noLookBack', 0], ['stayFront', 0], ['noRedDoor', 1]],
+    notify: '하람 씨, 등기부를 떼 봤는데요. 이 건물 준공일이 이상해요. 한 번만 같이 봐 줘요.',
+    intro: [['landlord', '준공일이 2월 30일이래요. 그런 날이 어딨어요.'], ['landlord', '오늘 밤 3시에 옥상에서 뭘 해야 한대요. 수칙에 그렇게 적혀 있어요.']],
+    outro: [['landlord', '하람 씨, 이 건물 계속 살아요. 월세는... 이제 조금만 받을게요.'], ['landlord', '청명이 준 건물이라도, 지금은 우리가 사는 집이니까.']],
+    reward: { sp: 2, rentMul: 0.8 },
+  },
+  // ── 도시탐정 K: 괴담 채널 ──
+  {
+    id: 'C1', chain: 'C', giver: 'k', chapter: 2, after: (s) => storyDone(s, 'c2s'),
+    theme: 'subway', diff: 2, patrol: 3, title: '[도시탐정 K] 0호선 막차 실험 생방송', pay: 150000,
+    rules: [['greet', 0], ['stopAt3', 1], ['noLookBack', 0], ['flicker', 0]],
+    notify: '안녕하세요! 괴담 채널 "도시탐정 K"입니다. 0호선 막차 실험 같이 찍어 주실 분 구해요. 사례 두둑이!',
+    intro: [['k', '반가워요! 저 구독자 12만 "도시탐정 K"예요.'], ['k', '오늘은 0호선 막차 수칙 실험! 시청자들이 수칙을 보내 줬어요. 전부 지켜 보는 거예요.'], ['me', '시청자들이 보낸 수칙이요?'], ['k', '네! 몇 개는 장난이겠지만, 그게 재미죠~']],
+    outro: [['k', '대박... 조회수 봐요. 하룻밤 사이에 80만.'], ['k', '댓글에 "나도 0호선 봤다"는 사람이 계속 늘어요. 신기하죠?'], ['me', '...그거, 괴담이 커지는 거예요.']],
+    reward: { sp: 1, money: 60000 },
+  },
+  {
+    id: 'C2', chain: 'C', giver: 'k', chapter: 3, after: (s) => s.sideDone.includes('C1'),
+    theme: 'pcbang', diff: 3, patrol: 4, title: '[도시탐정 K] 웃는 썸네일 리액션 방송', pay: 200000,
+    rules: [['greet', 0], ['noHitSmile', 0], ['flicker', 1], ['noAnswer', 0], ['stayFront', 0]],
+    notify: 'K예요! 이번엔 웃는 썸네일 원본 리액션 방송! 하람 씨가 현장 담당 해 주세요 ㅎㅎ',
+    intro: [['k', '이번 방송, 후원이 엄청 들어왔어요. 어떤 회사에서요.'], ['k', '청... 뭐였더라. 청명? 아무튼 큰 데요!']],
+    outro: [['k', '하람 씨... 저 이상한 메일 받았어요.'], ['k', '"확산 협력 감사드립니다. 다음 소재를 보내 드립니다." — 청명관리 확산팀'], ['k', '제가... 괴담을 퍼뜨리고 있었던 거예요?']],
+    reward: { sp: 1, truth: true },
+  },
+  {
+    id: 'C3', chain: 'C', giver: 'k', chapter: 4, after: (s) => s.sideDone.includes('C2'),
+    theme: 'school', diff: 4, patrol: 4, title: '[도시탐정 K] 마지막 방송', pay: 260000,
+    rules: [['noAnswer', 0], ['noLookBack', 0], ['stopAt3', 0], ['flicker', 0], ['noRedDoor', 1], ['noHitSmile', 1]],
+    notify: 'K입니다. 채널 닫기 전에 마지막 방송을 하려고요. 이번엔 진짜를 찍을 거예요.',
+    intro: [['k', '이번엔 시청자 수칙 말고 진짜 수칙만 가져왔어요. ...아마도요.'], ['k', '방송 제목은 "괴담은 누가 만드는가". 청명 이름도 말할 거예요.']],
+    outro: [['k', '방송... 끝까지 나갔어요. 근데 영상이 올라가자마자 사라졌어요.'], ['k', '대신 제 채널에 새 영상이 하나 올라와 있어요. 제가 찍은 적 없는.'], ['', '썸네일 속 K는 웃고 있다.'], ['k', '하람 씨. 저 이제 그만둘게요. ...그만둘 수 있겠죠?']],
+    reward: { sp: 2, money: 150000, artifact: 'silentrec' },
+  },
+];
+const SIDE_BY_ID = Object.fromEntries(SIDE_QUESTS.map((q) => [q.id, q]));
 
 // NPC 잡담
 const CHATS = {

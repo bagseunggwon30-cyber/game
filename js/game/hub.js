@@ -259,7 +259,8 @@ class HubScene {
     UI.pill(ctx, 14 + Gfx.measure(ctx, `DAY ${s.day}`, { bold: true }), 7, night ? '밤' : '낮', night ? '#8a9aff' : '#f2c230');
     Gfx.text(ctx, won(s.money), 8, 21, '#9ae89a');
     const left = s.rentDue - s.day;
-    Gfx.text(ctx, `월세 ${won(rentFor(s))} ${left <= 0 ? '오늘' : 'D-' + left}`, 8, 35, left <= 1 ? '#ff8a8a' : C.sub, { small: true });
+    const rentNow = Math.round(rentFor(s) * (s.rentMul || 1) * (1 - (s.rentDiscount || 0)) / 1000) * 1000;
+    Gfx.text(ctx, `월세 ${won(rentNow)} ${left <= 0 ? '오늘' : 'D-' + left}`, 8, 35, left <= 1 ? '#ff8a8a' : C.sub, { small: true });
     if (s.debt > 0) Gfx.text(ctx, '빚 ' + won(s.debt), 8, 46, '#ff6a6a', { small: true });
     // 가운데 위: 챕터 · 주간 동향 · 주간 목표
     const C2 = chapterInfo(s);
@@ -330,13 +331,16 @@ class HubScene {
         const stars = '★'.repeat(j.diff) + '☆'.repeat(5 - j.diff);
         const locked = j.locked;
         return {
-          label: (j.story ? '◆ ' : '') + (j.jammed ? glitchText(j.title, 0.15) : j.title.replace(/^\[.*?\] /, '')),
-          sub: j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : j.obj === 'deep' ? `심층 ${j.stages}층 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
-          subCol: j.jammed ? '#62d6e8' : (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
+          label: (j.story ? '◆ ' : j.side ? '◇ ' : '') + (j.jammed ? glitchText(j.title, 0.15) : j.side ? j.title : j.title.replace(/^\[.*?\] /, '')),
+          sub: j.side ? `서브 의뢰 · ${SPEAKERS[SIDE_BY_ID[j.side].giver].name} · ${stars}` : j.ruleJob ? `근무 수칙 ${j.rules.length}개 · ${THEMES[j.theme].short} · ${stars}` :
+            j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : j.obj === 'deep' ? `심층 ${j.stages}층 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
+          subCol: j.side ? '#ff8a7a' : j.ruleJob ? COL.yellow : j.jammed ? '#62d6e8' : (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
           right: j.obj === 'deep' ? '최대 ' + won(Math.round(j.pay * (0.65 + 0.3 * j.stages) / 1000) * 1000) : j.pay ? won(j.pay) : '???',
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
+            j.side ? `${SPEAKERS[SIDE_BY_ID[j.side].giver].name}의 부탁. 근무 수칙 ${j.rules.length}개를 지키며 순찰 ${j.patrol}곳을 돌고 06:00까지 버틴다.` :
+            j.ruleJob ? `${RULE_SCENES[j.theme].intro} 수칙 ${j.rules.length}개 — 거짓 수칙이 섞여 있을 수 있다. 무위반이면 보수 +30%.` :
             j.obj === 'deep' ? `${THEMES[j.theme].name}의 뒷면을 ${j.stages}층까지 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다. 마지막 층: ${OBJECTIVES[j.finalObj].name}. 쓰러지면 모두 잃는다.` :
             j.jammed ? `출처를 알 수 없는 공고. 보수는 1.6배지만 현장 전체에 통신 교란이 깔려 있다. (${(OBJECTIVES[j.obj] || { name: '최종' }).name})` : `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
           onSelect: () => this.confirmJob(j),

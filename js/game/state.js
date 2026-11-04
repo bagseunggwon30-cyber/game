@@ -46,6 +46,10 @@ function newState() {
     weaponLv: {},
     bagLv: 0,
     mig2: true,
+    sideDone: [],
+    sideDay: {},
+    rentDiscount: 0,
+    rentMul: 1,
   };
 }
 
@@ -143,6 +147,14 @@ function addMessage(s, from, text) {
 
 function checkMessages(s) {
   let n = 0;
+  // 서브 의뢰가 열리면 의뢰인이 연락한다
+  for (const j of sideJobs(s)) {
+    const q = SIDE_BY_ID[j.side];
+    if (s.seenMsgIds.includes('side_' + q.id)) continue;
+    s.seenMsgIds.push('side_' + q.id);
+    addMessage(s, q.giver, q.notify);
+    n++;
+  }
   // 메인 의뢰가 열리면 의뢰인이 연락한다
   const sm = STORY_MISSIONS[s.storyStage];
   if (sm && sm.notify && storyAvailable(s, sm) && !s.seenMsgIds.includes('q_' + sm.id)) {
@@ -215,6 +227,11 @@ function genJobs(s) {
     jobs.push(makeJob(s, rng, themes[i], obj, rng.int(lo, hi)));
   }
   jobs.sort((a, b) => a.diff - b.diff);
+  // 꿀알바 (근무 수칙)
+  if (s.storyStage >= 1 && s.day >= 3 && rng.chance(0.6)) {
+    const t = rng.pick(ch.themes.filter((k) => RULE_SCENES[k]));
+    if (t) jobs.push(makeRuleJob(s, rng, t, rng.int(lo, hi)));
+  }
   // 심층 탐사 (다단계 · 계속/철수 선택)
   if (s.storyStage >= 1) {
     const d = clamp(hi, 1, 5);
@@ -237,8 +254,39 @@ function genJobs(s) {
   return jobs;
 }
 
+// 서브 의뢰: 연작마다 다음 단계 하나
+function sideAvailable(s, q) {
+  return !s.sideDone.includes(q.id) && chapterOf(s) >= q.chapter && q.after(s) && s.day >= ((s.sideDay && s.sideDay[q.chain]) || 0) + 1;
+}
+function sideJobs(s) {
+  const out = [];
+  for (const chain of ['A', 'B', 'C']) {
+    const q = SIDE_QUESTS.find((x) => x.chain === chain && !s.sideDone.includes(x.id));
+    if (!q || !sideAvailable(s, q)) continue;
+    out.push({ id: q.id, side: q.id, theme: q.theme, obj: 'patrol', diff: q.diff, pay: q.pay, title: q.title, seed: 3000 + q.id.charCodeAt(0) * 31 + Number(q.id[1]) * 7,
+      rules: q.rules.map(([id, fake]) => ({ id, fake: !!fake })), patrol: q.patrol });
+  }
+  return out;
+}
+// 꿀알바: 근무 수칙 무작위 조합
+function makeRuleJob(s, rng, theme, d) {
+  const sc = RULE_SCENES[theme];
+  const n = Math.min(sc.pool.length, 4 + (d >= 3 ? 1 : 0));
+  const ids = rng.shuffle(sc.pool.slice()).slice(0, n);
+  const nFake = d >= 4 ? 2 : d >= 2 ? 1 : 0;
+  const fakeable = rng.shuffle(ids.filter((id) => RULES[id].fake));
+  const fakes = new Set(fakeable.slice(0, nFake));
+  return {
+    id: 'r' + Math.floor(rng.next() * 1e9), theme, obj: 'patrol', diff: d, title: sc.title,
+    pay: Math.round(BASE_PAY[d] * RULE_JOB_MUL * (1 + 0.03 * s.stats.luk) / 1000) * 1000,
+    seed: Math.floor(rng.next() * 1e9), ruleJob: true, patrol: 3 + (d >= 3 ? 1 : 0),
+    rules: ids.map((id) => ({ id, fake: fakes.has(id) })),
+  };
+}
+
 function currentJobs(s) {
   const list = s.jobs.slice();
+  for (const j of sideJobs(s).reverse()) list.unshift(j);
   const sj = storyJobFor(s);
   if (sj) list.unshift(sj);
   return list;
@@ -253,7 +301,8 @@ function advanceDay(s) {
   addSuspicion(s, -4);
   // 월세 (챕터가 오를수록 비싸진다)
   if (s.day >= s.rentDue) {
-    const rent = rentFor(s);
+    const rent = Math.round(rentFor(s) * (s.rentMul || 1) * (1 - (s.rentDiscount || 0)) / 1000) * 1000;
+    s.rentDiscount = 0;
     const paid = Math.min(s.money, rent);
     s.money -= paid;
     const short = rent - paid;

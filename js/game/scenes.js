@@ -169,6 +169,7 @@ class ResultScene {
     this.job = job; this.result = result; this.run = run; this.opt = opt;
     this.s = Game.state;
     this.story = job.story ? STORY_MISSIONS.find((m) => m.id === job.story) : null;
+    this.side = job.side ? SIDE_BY_ID[job.side] : null;
     this.step = 'head';
     this.ai = 0; this.choice = 0;
     this.t = 0;
@@ -179,9 +180,9 @@ class ResultScene {
   }
   enter() {
     Sound.setAmbience('hubnight');
-    if (this.result === 'success' && this.story && this.story.outro && this.story.outro.length) {
-      Game.push(new DialogModal(this.story.outro));
-    }
+    const outro = this.result === 'success' ? ((this.story && this.story.outro) || (this.side && this.side.outro)) : null;
+    if (outro && outro.length) Game.push(new DialogModal(outro));
+    if (this.result === 'success' && this.side && this.side.reward.artifact) this.arts.push(this.side.reward.artifact);
     Sound.play(this.result === 'success' || this.result === 'extract' ? 'resolve' : 'deny');
   }
   applyBase() {
@@ -204,9 +205,13 @@ class ResultScene {
       let pay = Math.round(job.pay * payMul * wm / 1000) * 1000;
       const noDmg = run.damage === 0;
       if (noDmg) pay = Math.round(pay * 1.1);
+      const perfect = full && run.ruleViol === 0;
+      if (perfect) pay = Math.round(pay * 1.3);
+      pay = Math.round(pay / 1000) * 1000;
       const r = addMoney(s, pay + run.cash);
       if (deep) this.log.push(['탐사 깊이', `${deep.cleared}/${deep.stages}층${full ? ' · 완주' : ''}`, '#b86cff']);
-      this.log.push(['알바 보수', won(pay) + (noDmg ? ' (무사고 +10%)' : ''), '#9ae89a']);
+      this.log.push(['알바 보수', won(pay) + (noDmg ? ' (무사고 +10%)' : '') + (perfect ? ' (수칙 완벽 +30%)' : ''), '#9ae89a']);
+      if (run.ruleViol != null) this.log.push(['수칙 위반', `${run.ruleViol}회`, run.ruleViol ? COL.orange : COL.green]);
       if (run.cash) this.log.push(['현장에서 주운 돈', won(run.cash), '#9ae89a']);
       if (r.toDebt) this.log.push(['빚 상환', '-' + won(r.toDebt), '#ff8a8a']);
       const tr = Math.round((6 + 3 * job.diff) * (deep ? 0.5 + 0.25 * deep.cleared + (full ? 0.25 : 0) : 1));
@@ -224,10 +229,27 @@ class ResultScene {
         if (this.story.id === 's1') { s.pendingDialogs = (s.pendingDialogs || []).concat([MINJAE_MEET]); s.jobs = genJobs(s); }
         this.log.push(['이야기 진행', '◆', COL.pink]);
       }
-      const sp = 1 + (job.diff >= 3 ? 1 : 0) + (this.story ? 1 : 0) + (run.boss ? 1 : 0) + (deep ? deep.cleared : 0);
+      // 서브 의뢰 완료 보상
+      let sideSp = 0;
+      if (this.side && full) {
+        const q = this.side, R = q.reward;
+        s.sideDone.push(q.id);
+        s.sideDay = s.sideDay || {}; s.sideDay[q.chain] = s.day;
+        sideSp = R.sp || 0;
+        this.log.push(['서브 의뢰 완료', q.title.replace(/^\[.*?\] /, ''), '#ff8a7a']);
+        if (R.money) { addMoney(s, R.money); this.log.push(['의뢰인 사례', won(R.money), '#9ae89a']); }
+        if (R.items) for (const k in R.items) { s.items[k] = Math.min(itemMax(s), (s.items[k] || 0) + R.items[k]); this.log.push(['받은 물건', `${ITEMS[k].name} ×${R.items[k]}`, COL.white]); }
+        if (R.rentDiscount) { s.rentDiscount = R.rentDiscount; this.log.push(['다음 월세', `${Math.round(R.rentDiscount * 100)}% 할인`, COL.green]); }
+        if (R.rentMul) { s.rentMul = R.rentMul; this.log.push(['월세', `영구 ${Math.round((1 - R.rentMul) * 100)}% 할인`, COL.green]); }
+        if (R.flag) s.flags[R.flag] = true;
+        if (R.truth) { const t = RANDOM_DOCS.find((d) => !s.truths.includes(d)); if (t) { s.truths.push(t); run.docs.push(t); } }
+        if (R.artifact) this.log.push(['받은 아티팩트', ARTIFACTS[R.artifact].name, RARITY[ARTIFACTS[R.artifact].rarity].col]);
+      }
+      const sp = 1 + (job.diff >= 3 ? 1 : 0) + (this.story ? 1 : 0) + (run.boss ? 1 : 0) + (deep ? deep.cleared : 0) + (perfect ? 1 : 0) + sideSp;
       s.sp = (s.sp || 0) + sp;
       this.log.push(['마음 조각 (SP)', '+' + sp + '  → 마음 지도', '#a99cff']);
-    } else if (this.result === 'retreat') {
+    } else if (this.result === 'retreat' || this.result === 'fired') {
+      if (this.result === 'fired') this.log.push(['수칙 위반 3회', '현장에서 쫓겨났다', '#ff8a8a']);
       addTrust(s, -5);
       if (run.cash) addMoney(s, run.cash);
       this.log.push(['철수', '보수 없음', '#ff8a8a'], ['신뢰', '-5', '#ff8a8a']);
@@ -299,8 +321,8 @@ class ResultScene {
     ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
     const r = new RNG(5);
     for (let x = 0; x < VW; x += r.int(14, 30)) { const h = r.int(16, 50); ctx.fillStyle = '#0f0d1c'; ctx.fillRect(x, VH - h, r.int(12, 26), h); }
-    const title = { success: '퇴근 완료', retreat: '현장 철수', fail: '임무 실패', extract: '탐사 철수' }[this.result];
-    const col = { success: COL.green, retreat: COL.orange, fail: COL.red, extract: '#b86cff' }[this.result];
+    const title = { success: '퇴근 완료', retreat: '현장 철수', fail: '임무 실패', extract: '탐사 철수', fired: '해고' }[this.result];
+    const col = { success: COL.green, retreat: COL.orange, fail: COL.red, extract: '#b86cff', fired: COL.red }[this.result];
     if (!this.bigTitle) this.bigTitle = Gfx.bigText(title, col, 2);
     ctx.drawImage(this.bigTitle, Math.round((VW - this.bigTitle.width) / 2), 6);
     Gfx.text(ctx, Gfx.fit(ctx, this.job.title, VW - 40, { small: true }), VW / 2, 38, C.sub, { align: 'center', small: true });
