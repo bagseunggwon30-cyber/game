@@ -2,7 +2,6 @@
 // ───────────────────────── 영구 상태 / 파생 능력치 / 일과 ─────────────────────────
 const SAVE_KEY = 'backside_parttimer_save_v1';
 const ENDINGS_KEY = 'backside_parttimer_endings_v1';
-const RENT = 250000;
 const RENT_CYCLE = 7;
 
 function newState() {
@@ -40,8 +39,24 @@ function newState() {
     pendingEvents: [],
     sp: 1,
     skills: ['core'],
+    chapterSeen: 0,
+    lastStoryDay: 0,
+    weekMod: null,
+    weekStats: { missions: 0 },
+    weaponLv: {},
+    bagLv: 0,
+    mig2: true,
   };
 }
+
+// ── 메인 의뢰 / 챕터 ──
+function storyIndex(id) { return STORY_MISSIONS.findIndex((m) => m.id === id); }
+function storyDone(s, id) { const i = storyIndex(id); return i >= 0 && s.storyStage > i; }
+function chapterOf(s) { const sm = STORY_MISSIONS[s.storyStage]; return sm ? sm.chapter : CHAPTERS.length; }
+function chapterInfo(s) { return CHAPTERS[chapterOf(s) - 1]; }
+function rentFor(s) { return chapterInfo(s).rent; }
+function storyWait(s, sm) { return Math.max(0, (s.lastStoryDay || 0) + (sm.gap || 0) - s.day); }
+function storyAvailable(s, sm) { return !!sm && storyWait(s, sm) === 0 && sm.req(s); }
 
 function rankIndex(s) {
   let r = 0;
@@ -71,10 +86,16 @@ function derive(s) {
     luk: st.luk,
     per,
     flipCd: Math.round((s.abilities.quickflip ? 26 : 46) * (1 - m.flipCd)),
-    weapon: WEAPONS[s.weapon],
+    weapon: weaponOf(s),
     ab: s.abilities,
     m,
   };
+}
+
+function weaponOf(s, key) {
+  const k = key || s.weapon;
+  const lv = (s.weaponLv && s.weaponLv[k]) || 0;
+  return Object.assign({}, WEAPONS[k], { dmg: WEAPONS[k].dmg * (1 + 0.12 * lv), lv });
 }
 
 function addMoney(s, amount) {
@@ -122,6 +143,13 @@ function addMessage(s, from, text) {
 
 function checkMessages(s) {
   let n = 0;
+  // 메인 의뢰가 열리면 의뢰인이 연락한다
+  const sm = STORY_MISSIONS[s.storyStage];
+  if (sm && sm.notify && storyAvailable(s, sm) && !s.seenMsgIds.includes('q_' + sm.id)) {
+    s.seenMsgIds.push('q_' + sm.id);
+    addMessage(s, sm.notify[0], sm.notify[1]);
+    n++;
+  }
   for (const m of DAILY_MESSAGES) {
     if (s.seenMsgIds.includes(m.id)) continue;
     let ok = false;
@@ -146,7 +174,7 @@ function absorbArtifact(s, id) {
 }
 
 // ── 알바 공고 생성 ──
-const BASE_PAY = [0, 90000, 130000, 180000, 240000, 310000];
+const BASE_PAY = [0, 55000, 75000, 100000, 130000, 165000];
 function makeJob(s, rng, theme, obj, diff) {
   const t = THEMES[theme];
   const objMul = { resolve: 1, erase: 1.15, stabilize: 1.05 }[obj];
@@ -163,18 +191,24 @@ function makeJob(s, rng, theme, obj, diff) {
 function storyJobFor(s) {
   const sm = STORY_MISSIONS[s.storyStage];
   if (!sm) return null;
+  const wait = storyWait(s, sm);
+  const reqOk = sm.req(s);
   return {
     id: sm.id, theme: sm.theme, obj: sm.obj, diff: sm.diff, pay: sm.pay, title: sm.title,
-    seed: 1000 + s.storyStage * 77, story: sm.id, locked: !sm.req(s), reqText: sm.reqText,
+    stages: sm.stages, finalObj: sm.finalObj, jammed: sm.jammed,
+    seed: 1000 + s.storyStage * 77, story: sm.id, locked: wait > 0 || !reqOk,
+    reqText: wait > 0 ? `${wait}일 뒤에 의뢰가 들어온다` + (reqOk ? '' : ` · ${sm.reqText}`) : sm.reqText,
   };
 }
 
 function genJobs(s) {
   const rng = new RNG(s.day * 9973 + s.trust * 31 + 7);
   const r = rankIndex(s);
-  const lo = Math.max(1, r), hi = Math.min(5, r + 2);
+  const ch = chapterInfo(s);
+  const lo = ch.diff[0], hi = ch.diff[1];
   const jobs = [];
-  const themes = rng.shuffle(REGULAR_THEMES.slice());
+  const themes = rng.shuffle(ch.themes.slice());
+  while (themes.length < 3) themes.push(rng.pick(ch.themes));
   const objs = ['resolve', 'erase', 'stabilize'];
   for (let i = 0; i < 3; i++) {
     const obj = i < 3 ? rng.shuffle(objs.slice())[0] : 'resolve';
@@ -183,8 +217,8 @@ function genJobs(s) {
   jobs.sort((a, b) => a.diff - b.diff);
   // 심층 탐사 (다단계 · 계속/철수 선택)
   if (s.storyStage >= 1) {
-    const d = clamp(r + 1, 1, 5);
-    const j = makeJob(s, rng, rng.pick(REGULAR_THEMES), 'resolve', d);
+    const d = clamp(hi, 1, 5);
+    const j = makeJob(s, rng, rng.pick(ch.themes), 'resolve', d);
     j.obj = 'deep';
     j.finalObj = rng.pick(['resolve', 'erase', 'stabilize']);
     j.stages = d <= 2 ? 3 : d <= 4 ? 4 : 5;
@@ -194,7 +228,7 @@ function genJobs(s) {
   }
   // 교란을 겪은 뒤에는 출처 불명 공고가 끼어든다
   if ((s.flags.jamSeen || s.contamination >= 35) && rng.chance(0.4)) {
-    const j = makeJob(s, rng, rng.pick(REGULAR_THEMES), rng.pick(objs), clamp(r + 2, 2, 5));
+    const j = makeJob(s, rng, rng.pick(ch.themes), rng.pick(objs), clamp(hi + 1, 2, 5));
     j.title = rng.pick(FAKE_JOB_TITLES);
     j.pay = Math.round(j.pay * 1.6 / 1000) * 1000;
     j.jammed = true;
@@ -217,14 +251,26 @@ function advanceDay(s) {
   s.workedToday = false;
   s.timeOfDay = 'day';
   addSuspicion(s, -4);
-  // 월세
+  // 월세 (챕터가 오를수록 비싸진다)
   if (s.day >= s.rentDue) {
-    const paid = Math.min(s.money, RENT);
+    const rent = rentFor(s);
+    const paid = Math.min(s.money, rent);
     s.money -= paid;
-    const short = RENT - paid;
+    const short = rent - paid;
     if (short > 0) s.debt += short;
     s.rentDue += RENT_CYCLE;
-    ev.push({ type: 'rent', paid, short });
+    ev.push({ type: 'rent', paid, short, amount: rent });
+  }
+  // 새 주: 주간 평가 + 괴담 동향
+  if (s.day > 1 && (s.day - 1) % 7 === 0) {
+    const ok = (s.weekStats.missions || 0) >= WEEK_QUOTA;
+    const bonus = 30000 * chapterOf(s);
+    if (ok) { addMoney(s, bonus); addTrust(s, 5); }
+    ev.push({ type: 'eval', ok, done: s.weekStats.missions || 0, bonus });
+    s.weekStats = { missions: 0 };
+    const keys = Object.keys(WEEK_MODS).filter((k) => k !== s.weekMod);
+    s.weekMod = keys[Math.floor(Math.random() * keys.length)];
+    ev.push({ type: 'week', mod: s.weekMod });
   }
   // 감사
   if (s.suspicion >= 40 && s.storyStage >= 1) {
@@ -257,6 +303,12 @@ function loadGame() {
   const d = Storage.get(SAVE_KEY);
   if (!d || d.v !== 1) return null;
   const base = newState();
+  // 챕터 구조 도입 전 저장: 옛 의뢰 순번(s1~s5)을 새 순번으로 옮긴다
+  if (!d.mig2) {
+    const old = ['s1', 's2', 's3', 's4', 's5'];
+    d.storyStage = d.storyStage >= old.length ? STORY_MISSIONS.length : storyIndex(old[d.storyStage]);
+    d.mig2 = true;
+  }
   return Object.assign(base, d);
 }
 function hasSave() { return !!Storage.get(SAVE_KEY); }

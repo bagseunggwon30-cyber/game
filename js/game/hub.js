@@ -129,6 +129,14 @@ class HubScene {
 
   runPending() {
     const s = this.s;
+    // 새 챕터
+    const ch = chapterOf(s);
+    if (ch > (s.chapterSeen || 0)) {
+      s.chapterSeen = ch;
+      const C = CHAPTERS[ch - 1];
+      Game.push(new ChapterCard(C, () => { if (C.intro.length) Game.push(new DialogModal(C.intro, () => { saveGame(s); this.runPending(); })); else this.runPending(); }));
+      return;
+    }
     if (s.pendingDialogs && s.pendingDialogs.length) {
       const lines = s.pendingDialogs.shift();
       Game.push(new DialogModal(lines, () => { saveGame(s); this.runPending(); }));
@@ -144,8 +152,8 @@ class HubScene {
     const s = this.s;
     if (ev.type === 'rent') {
       const lines = ev.short > 0
-        ? [['landlord', `월세 ${won(RENT)} 중에 ${won(ev.paid)}만 들어왔네요?`], ['landlord', `나머지 ${won(ev.short)}은 빚으로 달아 둘게요. 다음 수입에서 절반씩 떼 갈 거예요~`]]
-        : [['landlord', `월세 ${won(RENT)} 잘 받았어요~ 다음 달도 부탁해요.`]];
+        ? [['landlord', `월세 ${won(ev.amount)} 중에 ${won(ev.paid)}만 들어왔네요?`], ['landlord', `나머지 ${won(ev.short)}은 빚으로 달아 둘게요. 다음 수입에서 절반씩 떼 갈 거예요~`]]
+        : [['landlord', `월세 ${won(ev.amount)} 잘 받았어요~ 다음 주도 부탁해요.`]];
       Game.push(new DialogModal(lines, next));
     } else if (ev.type === 'audit') {
       const lines = ev.caught
@@ -153,6 +161,15 @@ class HubScene {
         : [['', '아침 일찍, 청명 감사팀이 옥탑방을 뒤졌다.'], ['', '아무것도 나오지 않았다. 의심도가 크게 내려갔다.']];
       Sound.play(ev.caught ? 'deny' : 'select');
       Game.push(new DialogModal(lines, next));
+    } else if (ev.type === 'eval') {
+      Sound.play(ev.ok ? 'levelup' : 'cancel');
+      Game.push(new DialogModal(ev.ok
+        ? [['seo', `주간 평가예요. 이번 주 ${ev.done}건, 기준(${WEEK_QUOTA}건) 통과. 수고했어요.`], ['', `주간 보너스 ${won(ev.bonus)} · 신뢰 +5`]]
+        : [['seo', `주간 평가예요. 이번 주 ${ev.done}건... 기준은 ${WEEK_QUOTA}건이에요.`], ['seo', '다음 주엔 조금 더 힘내 봐요.']], next));
+    } else if (ev.type === 'week') {
+      const w = WEEK_MODS[ev.mod];
+      Sound.play('phone');
+      Game.push(new DialogModal([['phone', `[틈새] 이번 주 괴담 동향 — ${w.name}`], ['', w.desc]], next));
     } else if (ev.type === 'reboot') {
       Sound.play('static');
       Game.push(new DialogModal([['', '밤새 휴대폰 화면이 지직거렸다. 껐다 켜니 잡음은 사라졌다.'], ['', '...어젯밤 받은 이상한 메시지는, 그대로 남아 있다.']], next));
@@ -205,7 +222,7 @@ class HubScene {
     // NPC
     const npc = (set, x, face) => { const f = (face > 0 ? set.R : set.L)[Math.floor(this.time / 30) % 2]; ctx.drawImage(f, Math.round(x - cam), HUB_GROUND - 24); };
     npc(SPR.noeul, 356, -1);
-    if (s.storyStage >= 1 && !s.flags.minjaeGone) npc(SPR.min, 548, 1);
+    if (storyDone(s, 's1') && !s.flags.minjaeGone) npc(SPR.min, 548, 1);
     // 플레이어
     const p = this.player;
     const fr = (p.facing > 0 ? SPR.player.R : SPR.player.L)[p.frame];
@@ -242,8 +259,14 @@ class HubScene {
     UI.pill(ctx, 14 + Gfx.measure(ctx, `DAY ${s.day}`, { bold: true }), 7, night ? '밤' : '낮', night ? '#8a9aff' : '#f2c230');
     Gfx.text(ctx, won(s.money), 8, 21, '#9ae89a');
     const left = s.rentDue - s.day;
-    Gfx.text(ctx, `월세 ${left <= 0 ? '오늘' : 'D-' + left}`, 8, 35, left <= 1 ? '#ff8a8a' : C.sub, { small: true });
-    if (s.debt > 0) Gfx.text(ctx, '빚 ' + won(s.debt), 62, 35, '#ff6a6a', { small: true });
+    Gfx.text(ctx, `월세 ${won(rentFor(s))} ${left <= 0 ? '오늘' : 'D-' + left}`, 8, 35, left <= 1 ? '#ff8a8a' : C.sub, { small: true });
+    if (s.debt > 0) Gfx.text(ctx, '빚 ' + won(s.debt), 8, 46, '#ff6a6a', { small: true });
+    // 가운데 위: 챕터 · 주간 동향 · 주간 목표
+    const C2 = chapterInfo(s);
+    Gfx.text(ctx, `CHAPTER ${C2.n} · ${C2.title}`, VW / 2, 5, C.sub, { small: true, align: 'center' });
+    const wk = s.weekMod ? WEEK_MODS[s.weekMod] : null;
+    const wtxt = (wk ? wk.name + ' · ' : '') + `주간 ${(s.weekStats && s.weekStats.missions) || 0}/${WEEK_QUOTA}`;
+    UI.pill(ctx, VW / 2, 17, wtxt, wk ? wk.col : C.sub, { align: 'center', dot: !!wk });
     // 우상단: 등급 / 의심 / 오염
     const ri = rankIndex(s), nr = RANKS[ri + 1];
     const rx = VW - 104;
@@ -277,7 +300,7 @@ class HubScene {
     Game.push(new PhoneHome([
       { name: '틈새', icon: 'jobs', desc: '오늘 지원할 수 있는 알바 목록.', open: () => this.openJobs() },
       { name: '메시지', icon: 'msg', badge: unreadCount(s) || null, desc: '받은 메시지.', open: () => this.openMessages() },
-      { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/10 — 현장에서 모은 문서.`, open: () => this.openTruths() },
+      { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/${TRUTH_ORDER.length} — 현장에서 모은 문서.`, open: () => this.openTruths() },
       { name: '마음 지도', icon: 'mind', badge: s.sp || null, desc: '스킬트리. 마음 조각(SP)으로 노드를 해금한다.', open: () => Game.push(new SkillTreeView(s)) },
       { name: '내 상태', icon: 'status', desc: '능력치 · 능력 · 장비.', open: () => Game.push(new StatusView(s)) },
       { name: '설정', icon: 'settings', desc: '소리, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
@@ -354,7 +377,7 @@ class HubScene {
   openTruths() {
     const s = this.s;
     Game.push(new Menu({
-      title: '메모 · 진실 조각', titleRight: s.truths.length + '/10', desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#e8e0c8',
+      title: '메모 · 진실 조각', titleRight: s.truths.length + '/' + TRUTH_ORDER.length, desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#e8e0c8',
       items: TRUTH_ORDER.map((id, i) => {
         const has = s.truths.includes(id);
         return {
@@ -449,8 +472,8 @@ class HubScene {
         const have = s.items[k] || 0;
         return {
           label: it.name, icon: SPR.icon[it.icon], bigIcon: SPR.icon[it.icon], right: won(it.price) + ` (${have})`,
-          disabled: have >= ITEM_MAX || s.money < it.price,
-          desc: it.desc + (have >= ITEM_MAX ? `  — 최대 ${ITEM_MAX}개` : s.money < it.price ? '  — 돈이 부족하다' : ''),
+          disabled: have >= itemMax(s) || s.money < it.price,
+          desc: it.desc + (have >= itemMax(s) ? `  — 최대 ${itemMax(s)}개` : s.money < it.price ? '  — 돈이 부족하다' : ''),
           onSelect: (m) => { if (spendMoney(s, it.price)) { s.items[k] = have + 1; Sound.play('buy'); m.o.titleRight = won(s.money); } },
         };
       }),
@@ -462,7 +485,7 @@ class HubScene {
   openNoeul() {
     const s = this.s;
     const sellPrice = (id) => Math.round(RARITY[ARTIFACTS[id].rarity].submit * 1.4 / 1000) * 1000;
-    const infoPool = () => ['t5', 't6', 't7', 't8', 't9'].filter((t) => !s.truths.includes(t));
+    const infoPool = () => RANDOM_DOCS.filter((t) => !s.truths.includes(t));
     Game.push(new Menu({
       title: '새벽마트 뒷문 · 노을', w: 240, desc: true,
       refresh: () => [
@@ -489,7 +512,7 @@ class HubScene {
               const t = infoPool()[0];
               s.truths.push(t);
               saveGame(s);
-              Game.push(new DialogModal([['noeul', '...좋아요. 이건 내가 도망칠 때 들고 나온 거예요.']], () => Game.push(new TextView(TRUTHS[t].title, TRUTHS[t].text + `\n\n[진실 조각 획득 ${s.truths.length}/10]`, null, { paper: true }))));
+              Game.push(new DialogModal([['noeul', '...좋아요. 이건 내가 도망칠 때 들고 나온 거예요.']], () => Game.push(new TextView(TRUTHS[t].title, TRUTHS[t].text + `\n\n[진실 조각 획득 ${s.truths.length}/${TRUTH_ORDER.length}]`, null, { paper: true }))));
             } })),
           }));
         } },
@@ -517,6 +540,7 @@ class HubScene {
         { label: '승급 교육', right: s.statPoints + 'P', disabled: s.statPoints <= 0, col: s.statPoints > 0 ? COL.green : null, desc: s.statPoints > 0 ? '승급 포인트로 능력치를 올린다.' : '승급하면 포인트를 받는다.', onSelect: () => this.openTraining() },
         { label: '비품 신청', desc: '돈을 내고 장비를 지급받는다. (구매 즉시 장착)', onSelect: () => this.openEquipShop() },
         { label: '장비 변경', right: WEAPONS[s.weapon].name, desc: '보유한 무기 중 하나를 고른다.', onSelect: () => this.openWeaponSelect() },
+        { label: '장비 강화', desc: '무기를 강화하고 소모품 가방을 넓힌다.', onSelect: () => this.openUpgrade() },
         { label: '정화 시술', right: won(clinicPrice()), disabled: s.contamination <= 0 || s.money < clinicPrice(), desc: `오염도를 15 낮춘다. 현재 오염 ${Math.round(s.contamination)}. 회사 지정 의원에서 받는다. (회차마다 비싸진다)`, onSelect: () => {
           if (!spendMoney(s, clinicPrice())) return;
           s.clinicUses++;
@@ -567,6 +591,29 @@ class HubScene {
           const lock = (g.rank || 0) > r;
           items.push({ label: '[장비] ' + g.name, right: owned ? '보유' : won(g.price), disabled: owned || lock || s.money < g.price, desc: g.desc + (lock ? `  — ${RANKS[g.rank].name} 이상` : ''), onSelect: (m) => { if (spendMoney(s, g.price)) { s.gear.push(k); Sound.play('buy'); m.o.titleRight = won(s.money); saveGame(s); } } });
         }
+        return items;
+      },
+    }));
+  }
+  openUpgrade() {
+    const s = this.s;
+    Game.push(new Menu({
+      title: '장비 강화', titleRight: won(s.money), w: 270, desc: true,
+      refresh: () => {
+        const items = s.weapons.map((k) => {
+          const lv = (s.weaponLv && s.weaponLv[k]) || 0;
+          const max = lv >= WEAPON_UP_COST.length;
+          const cost = max ? 0 : WEAPON_UP_COST[lv];
+          return {
+            label: `${WEAPONS[k].name} +${lv}`, right: max ? '최대' : won(cost), disabled: max || s.money < cost,
+            desc: max ? '더 이상 강화할 수 없다.' : `공격력 ${Math.round(WEAPONS[k].dmg * (1 + 0.12 * lv))} → ${Math.round(WEAPONS[k].dmg * (1 + 0.12 * (lv + 1)))}`,
+            onSelect: (m) => { if (!spendMoney(s, cost)) return; s.weaponLv = s.weaponLv || {}; s.weaponLv[k] = lv + 1; Sound.play('levelup'); m.o.titleRight = won(s.money); saveGame(s); },
+          };
+        });
+        const bl = s.bagLv || 0, bmax = bl >= BAG_UP_COST.length;
+        items.push({ label: `소모품 가방 Lv.${bl}`, right: bmax ? '최대' : won(BAG_UP_COST[bl]), disabled: bmax || s.money < (BAG_UP_COST[bl] || 0),
+          desc: bmax ? '가방이 꽉 찼다... 아니, 더 넓힐 수 없다.' : `소모품 최대 소지 ${itemMax(s)} → ${itemMax(s) + 1}개`,
+          onSelect: (m) => { if (!spendMoney(s, BAG_UP_COST[bl])) return; s.bagLv = bl + 1; Sound.play('buy'); m.o.titleRight = won(s.money); saveGame(s); } });
         return items;
       },
     }));

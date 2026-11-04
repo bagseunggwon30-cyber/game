@@ -358,6 +358,7 @@ function buildPortraits() {
       }
       G.px(c, 12, 13, 3, 2, '#ff3a5a'); G.px(c, 20, 13, 3, 2, '#ff3a5a');
     }),
+    ryu: G.sprite(34, 34, (c) => face(c, { hair: '#6a6a74', skin: '#e2b896', skinShade: '#bf9474', shirt: '#30323e' }, { glasses: true, collar: '#3a3a48' })),
     landlord: G.sprite(34, 34, (c) => face(c, { hair: '#8a8a8a', skin: '#e8b890', skinShade: '#c09070', shirt: '#7a5a8a' }, { tired: true, smile: false })),
   };
 }

@@ -109,9 +109,9 @@ const ARTIFACTS = {
   idcard: { name: '청명 사원증', icon: 'idcard', rarity: 2, from: 'mcheong', eff: {}, story: true, desc: '사진 칸에 아무 얼굴도 없다. 누구든 될 수 있다.' },
 };
 const RARITY = [
-  { name: '흔함', col: '#c8c4d8', submit: 30000, trust: 3, sus: 8, cont: 6 },
-  { name: '희귀', col: '#62d6e8', submit: 70000, trust: 6, sus: 15, cont: 10 },
-  { name: '이상', col: '#ff5a8a', submit: 150000, trust: 12, sus: 25, cont: 18 },
+  { name: '흔함', col: '#c8c4d8', submit: 15000, trust: 3, sus: 8, cont: 6 },
+  { name: '희귀', col: '#62d6e8', submit: 35000, trust: 6, sus: 15, cont: 10 },
+  { name: '이상', col: '#ff5a8a', submit: 80000, trust: 12, sus: 25, cont: 18 },
 ];
 const ABILITIES = {
   doubleJump: { name: '이단 점프', desc: '공중에서 한 번 더 점프할 수 있다.' },
@@ -132,6 +132,10 @@ const ITEMS = {
   foil: { name: '전파 차단 호일', icon: 'foil', price: 6000, desc: '휴대폰을 호일로 감싼다. 30초 동안 통신 교란을 막는다.', jamImmune: 30 },
 };
 const ITEM_MAX = 6;
+// 돈 쓸 곳: 무기 강화(단계당 공격력 +12%) / 소모품 가방(단계당 최대 소지 +1)
+const WEAPON_UP_COST = [80000, 160000, 280000, 450000, 700000];
+const BAG_UP_COST = [60000, 120000, 200000, 320000];
+function itemMax(s) { return ITEM_MAX + (s.bagLv || 0); }
 
 // 비품 (청명관리)
 const WEAPONS = {
@@ -151,10 +155,10 @@ const GEAR = {
 
 const RANKS = [
   { name: '수습 알바', need: 0 },
-  { name: '알바', need: 30 },
-  { name: '숙련 알바', need: 85 },
-  { name: '현장 조장', need: 160 },
-  { name: '특별 계약자', need: 260 },
+  { name: '알바', need: 40 },
+  { name: '숙련 알바', need: 150 },
+  { name: '현장 조장', need: 320 },
+  { name: '특별 계약자', need: 520 },
 ];
 
 const OBJECTIVES = {
@@ -182,6 +186,7 @@ const JOB_TITLES = {
   store: ['새벽 3시마다 계산대에 영수증이 쌓임', '냉장고 안쪽에서 누가 문을 두드림', '아무도 없는데 "어서오세요"가 계속 울림', '바코드가 찍히지 않는 손님 목격담'],
   subway: ['막차 이후 안내방송이 계속 나옴', '노선도에 없는 승강장 목격 신고', '환승 통로가 끝나지 않는다는 제보', '스크린도어 너머에서 손을 흔드는 사람'],
   school: ['폐교 본관 계단 개수가 맞지 않음', '야간 경비원이 출석 부르는 소리를 들음', '사물함이 안쪽에서 잠김', '교실 거울에 수업 중인 학생들이 비침'],
+  hq: ['청명 지점 사무동 야간 점검', '복사기가 밤새 같은 공고를 출력함', '결재 서류에 존재하지 않는 도장', '사내 방송에서 박수 소리만 나옴'],
   pcbang: ['특정 썸네일을 본 손님들이 계속 웃음', '꺼진 모니터에서 알림음이 울림', '빈자리에서 키보드 소리가 남', '"읽지 않음 1"이 사라지지 않는다는 제보'],
 };
 
@@ -223,3 +228,16 @@ const FAKE_MESSAGES = [
   '아티팩트는 전부 흡수해도 괜찮아요. 회사 방침이 바뀌었어요.',
   '민재 씨가 하람 씨를 찾아요. 틈새에 새로 뜬 공고로 오래요.',
 ];
+
+// ───── 주간 괴담 동향 (매주 바뀌는 현장 규칙) ─────
+const WEEK_MODS = {
+  notif: { name: '알림 폭증', col: '#62d6e8', desc: '읽지 않은 알림 떼가 모든 현장에 몰려든다. 통신 교란이 잦다.' },
+  blackout: { name: '정전 주간', col: '#8a9aff', desc: '표면도 어둡다. 뒷면 시야 -15.' },
+  boom: { name: '괴담 붐', col: '#ff7aa8', desc: '현장마다 아티팩트 +1. 대신 존재들의 체력 +15%.' },
+  audit: { name: '감사 강화', col: '#f08a3c', desc: '은닉 시 의심도 +50%. 제출 시 신뢰 +50%.' },
+  raise: { name: '보수 인상', col: '#6fd08c', desc: '모든 알바 보수 +25%.' },
+  dread: { name: '집단 불안', col: '#ff6a3a', desc: '공포가 30% 더 빨리 쌓인다. 희망 지속 시간 +30%.' },
+  quiet: { name: '조용한 주', col: '#c8c4d8', desc: '존재 출현 -30%. 보수 -10%.' },
+  flood: { name: '뒷면 범람', col: '#b86cff', desc: '뒷면 정신력 소모 +25%. 전파 오염 구역이 생긴다.' },
+};
+const WEEK_QUOTA = 4;   // 주간 평가: 이번 주 성공한 현장 수

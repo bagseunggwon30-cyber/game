@@ -535,6 +535,8 @@ function buildRoomMap(spec, seed) {
 
   // 9) 적
   const pool = th.enemies.map((e) => [e, e === 'watcher' ? (d >= 2 ? 1.5 : 0) : e === 'flyer' || e === 'notif' ? 2 : 3]);
+  if (spec.weekMod === 'notif') { const n = pool.find((q) => q[0] === 'notif'); if (n) n[1] = 6; else pool.push(['notif', 5]); }
+  const spawnMul = spec.weekMod === 'quiet' ? 0.7 : 1;
   const placeEnemy = (type, m, layer) => {
     const def = ENEMIES[type];
     const air = def.ai === 'float' || def.ai === 'swarm' || def.ai === 'turret';
@@ -546,7 +548,7 @@ function buildRoomMap(spec, seed) {
     const ambush = ambushRooms.includes(r);
     const list = [];
     for (const m of r.marks.e) {
-      if (!rng.chance(ambush ? 1 : 0.4 + 0.08 * d)) continue;
+      if (!rng.chance(ambush ? 1 : (0.4 + 0.08 * d) * spawnMul)) continue;
       const t = rng.weighted(pool);
       if (ambush) list.push({ type: t, tx: m.x, gy: m.y + 1 });
       else placeEnemy(t, m);
@@ -581,7 +583,7 @@ function buildRoomMap(spec, seed) {
   for (let k = 0; k < nBox && iSpots.length; k++) { const m = iSpots.pop(); out.pickups.push({ type: 'item', id: rng.pick(['drink', 'candy', 'gimbap', 'salt', 'charm', 'candy', 'coffee', 'foil']), x: wx(m.x) + 1, y: wx(m.y + 1) - 16, layer: rng.pick(['front', 'back']) }); }
 
   // 11) 전파 오염 구역
-  if (d >= 4 || (spec.theme === 'pcbang' && d >= 2) || spec.jammed || (deep && deep.stage >= 3)) {
+  if (d >= 4 || (spec.theme === 'pcbang' && d >= 2) || spec.jammed || (deep && deep.stage >= 3) || spec.weekMod === 'flood' || spec.weekMod === 'notif') {
     const n = spec.jammed ? 3 : d >= 5 ? 3 : 2;
     const cands = rng.shuffle(middle.slice());
     for (const r of cands.slice(0, n)) out.jamZones.push({ x0: wx(r.ox), x1: wx(r.ox + RW), y0: wx(r.oy), y1: wx(r.oy + RH) });

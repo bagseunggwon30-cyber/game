@@ -16,14 +16,17 @@ class MissionScene {
     const randomDoc = !this.story && Math.random() < 0.3 + 0.04 * this.s.stats.luk + this.D.m.docChance ? this.pickRandomDoc() : null;
     this.gen = generateMission({
       theme: job.theme, obj: this.obj, diff: this.diff, seed: job.seed + (this.deep ? this.deep.stage * 7919 : 0), luk: this.s.stats.luk, deep: this.deep,
-      tutorial: this.story && this.story.tutorial, doc: this.story ? this.story.doc : null, randomDoc,
-      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt, jammed: !!job.jammed,
+      tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc,
+      weekMod: this.s.weekMod,
+      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
     });
     this.lvl = this.gen.lvl;
     this.tiles = buildTiles(job.theme);
     this.player = new Player(this.gen.start.x, this.gen.start.y, this);
     this.player.shield = 0;
     this.enemies = this.gen.enemies.map((e) => new Enemy(e.type, e.x, e.y, e.layer, this, this.diff));
+    if (this.s.weekMod === 'boom') for (const e of this.enemies) { e.hp = Math.round(e.hp * 1.15); e.maxHp = e.hp; }
+    if (this.s.weekMod === 'blackout') this.D.light -= 15;
     this.pickups = this.gen.pickups.map((p) => makePickup(p));
     this.interacts = this.gen.interacts.map((o) => Object.assign({ done: false, prog: 0, active: false }, o));
     this.projectiles = [];
@@ -68,7 +71,7 @@ class MissionScene {
   }
 
   pickRandomDoc() {
-    const pool = ['t5', 't6', 't7', 't8', 't9'].filter((t) => !this.s.truths.includes(t));
+    const pool = RANDOM_DOCS.filter((t) => !this.s.truths.includes(t));
     return pool.length ? pickR(pool) : null;
   }
 
@@ -85,7 +88,7 @@ class MissionScene {
 
   enter() {
     Sound.setAmbience('front');
-    const intro = this.story ? this.story.intro : null;
+    const intro = this.story && !this.carry ? this.story.intro : null;
     if (intro && intro.length) Game.push(new DialogModal(intro, () => this.showStartBanner()));
     else this.showStartBanner();
   }
@@ -129,7 +132,7 @@ class MissionScene {
   critChance() { return this.D.crit + (this.m.conviction && this.player.st.has('hope') ? 0.12 : 0); }
   addHope(sec, why) {
     const p = this.player;
-    const frames = Math.round(sec * 60 * (1 + this.m.hopeDur));
+    const frames = Math.round(sec * 60 * (1 + this.m.hopeDur) * (this.s.weekMod === 'dread' ? 1.3 : 1));
     const had = p.st.has('hope');
     p.st.add('hope', p.st.left('hope') + frames);
     if (!had) {
@@ -210,7 +213,7 @@ class MissionScene {
         if (this.boss && !this.boss.dead) rate += 2;
         if (this.deep) rate += (this.deep.stage - 1) * 0.35;
         if (p.san < p.maxSan * 0.3) rate += 1.5;
-        let mul = 1 - m.fearGain;
+        let mul = (1 - m.fearGain) * (this.s.weekMod === 'dread' ? 1.3 : 1);
         if (hope) mul *= m.hopeNoFear ? 0 : 0.5;
         if (m.trance) mul *= Math.max(0.3, 1 - 0.12 * p.st.stacks('rage'));
         p.fear = Math.min(100, p.fear + rate * mul / 60);
@@ -448,7 +451,7 @@ class MissionScene {
         const isNew = !this.s.truths.includes(o.id);
         if (isNew) { this.s.truths.push(o.id); this.run.docs.push(o.id); }
         Sound.play('pickup');
-        Game.push(new TextView(tr.title, tr.text + (isNew ? '\n\n[진실 조각 획득 ' + this.s.truths.length + '/10]' : ''), null, { paper: true }));
+        Game.push(new TextView(tr.title, tr.text + (isNew ? '\n\n[진실 조각 획득 ' + this.s.truths.length + '/' + TRUTH_ORDER.length + ']' : ''), null, { paper: true }));
         break;
       }
       case 'core':
@@ -600,13 +603,13 @@ class MissionScene {
   }
   finaleChoice() {
     const s = this.s;
-    const canExpose = s.truths.length >= 7;
+    const canExpose = s.truths.length >= EXPOSE_NEED;
     const canMerge = s.contamination >= 60;
     Game.push(new Menu({
       title: '결재함 앞에서', w: 250, desc: true, onCancel: false, block: 45,
       items: [
         { label: '계약서에 서명한다', desc: '정규직이 된다. 청명의 일부로, 영원히 안전하게.', onSelect: (m) => { m.close(); this.endWith('hire'); } },
-        { label: '모든 기록을 퍼뜨린다', disabled: !canExpose, desc: canExpose ? '모은 진실을 세상에 공개한다. 청명이 막아설 것이다.' : `진실 조각이 부족하다 (${s.truths.length}/7)`, onSelect: (m) => { m.close(); this.finaleFight('expose'); } },
+        { label: '모든 기록을 퍼뜨린다', disabled: !canExpose, desc: canExpose ? '모은 진실을 세상에 공개한다. 청명이 막아설 것이다.' : `진실 조각이 부족하다 (${s.truths.length}/${EXPOSE_NEED})`, onSelect: (m) => { m.close(); this.finaleFight('expose'); } },
         { label: '뒷면에 남는다', disabled: !canMerge, desc: canMerge ? '표면으로 돌아가지 않는다. 당신은 이야기가 된다.' : `아직 뒷면이 당신을 받아들이지 않는다 (오염 ${Math.round(s.contamination)}/60)`, onSelect: (m) => { m.close(); this.endWith('merge'); } },
         { label: '거절한다', desc: '서명하지 않고 나간다. 청명이 막아설 것이다.', onSelect: (m) => { m.close(); this.finaleFight('quit'); } },
       ],
@@ -698,7 +701,7 @@ class MissionScene {
       this.updateJam();
       const panic = p.st.has('panic');
       if (p.layer === 'back') {
-        let mul = this.arenaActive ? 0.5 : 1;
+        let mul = (this.arenaActive ? 0.5 : 1) * (this.s.weekMod === 'flood' ? 1.25 : 1);
         if (this.frightened() && !this.m.coldMind) mul *= 1.25;
         if (panic) mul *= 2;
         p.san -= this.D.drain * mul / 60;
@@ -834,7 +837,7 @@ class MissionScene {
           break;
         case 'item': {
           const cur = this.s.items[k.id] || 0;
-          if (cur >= ITEM_MAX) { k.dead = false; continue; }
+          if (cur >= itemMax(this.s)) { k.dead = false; continue; }
           this.s.items[k.id] = cur + 1;
           Sound.play('pickup');
           this.toast(`${ITEMS[k.id].name} 획득`, COL.white);
@@ -1027,7 +1030,7 @@ class MissionScene {
     }
     ctx.globalAlpha = 1;
     // 뒷면 조명
-    if (L === 'back') this.drawDarkness(ctx, cam);
+    if (L === 'back' || this.s.weekMod === 'blackout') this.drawDarkness(ctx, cam, L === 'front' ? 0.55 : null);
     // 플로팅 텍스트
     for (const f of this.floaters) Gfx.text(ctx, f.text, f.x - cam.x, f.y - cam.y, f.col, { small: true, align: 'center' });
     // 상호작용 안내 (키캡 + 이름)
@@ -1203,11 +1206,11 @@ class MissionScene {
     }
   }
 
-  drawDarkness(ctx, cam) {
+  drawDarkness(ctx, cam, alpha) {
     const t = Gfx.tctx;
     t.globalCompositeOperation = 'source-over';
     t.clearRect(0, 0, VW, VH);
-    t.fillStyle = this.arenaActive || this.boss ? 'rgba(4,0,2,0.55)' : 'rgba(4,0,2,0.8)';
+    t.fillStyle = alpha != null ? `rgba(2,2,8,${alpha})` : this.arenaActive || this.boss ? 'rgba(4,0,2,0.55)' : 'rgba(4,0,2,0.8)';
     t.fillRect(0, 0, VW, VH);
     t.globalCompositeOperation = 'destination-out';
     const light = (x, y, r) => {

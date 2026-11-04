@@ -8,6 +8,7 @@ const SPEAKERS = {
   unknown: { name: '???', face: 'unknown', col: '#ff5a6a' },
   landlord: { name: '집주인', face: 'landlord', col: '#c8a8d8' },
   phone: { name: '틈새 알림', face: null, col: '#62d6e8' },
+  ryu: { name: '감사팀 류 과장', face: 'ryu', col: '#9aa8c8' },
   '': { name: '', face: null, col: '#f4f0e6' },
   fakeSeo: { name: '서경 팀장', face: 'seo', col: '#c8d0e0' },
 };
@@ -50,10 +51,27 @@ const TUTORIAL_HINTS = {
   cause: '단서를 다 모았다면 원인을 조사(↑)해 해소하자. 해소 중엔 범위 안에 머물러야 한다.',
 };
 
-// 스토리 미션
+// ───── 챕터 ─────
+const CHAPTERS = [
+  { n: 1, title: '수습 기간', sub: '이상한 알바를 시작했다', rent: 200000, themes: ['apartment', 'store', 'subway'], diff: [1, 2], intro: [] },
+  { n: 2, title: '신호 불량', sub: '화면이 거짓말을 하기 시작했다', rent: 260000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang'], diff: [2, 3],
+    intro: [['seo', '하람 씨, 수습 기간 끝났어요. 이제 정식 알바예요.'], ['seo', '요즘 현장에서 휴대폰이 이상해진다는 보고가 늘었어요. 화면만 믿지 마세요.']] },
+  { n: 3, title: '틈새', sub: '사라진 사람이 공고가 되었다', rent: 330000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang'], diff: [3, 4],
+    intro: [['', '민재의 번호는 아직 연락처에 남아 있다. 메시지 옆의 "1"은 사라지지 않는다.'], ['noeul', '...틈새 앱, 요즘 공고가 이상하게 많지 않아요?']] },
+  { n: 4, title: '배양실', sub: '치우는 곳이 아니라, 키우는 곳', rent: 400000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hq'], diff: [4, 5],
+    intro: [['seo', '현장 조장 승진 축하해요. 이제부터는... 보이는 게 많아질 거예요.'], ['seo', '보인다고 다 말할 필요는 없어요.']] },
+  { n: 5, title: '청명', sub: '모두가 믿는 이야기', rent: 480000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hq'], diff: [5, 5],
+    intro: [['', '틈새 앱에 알림이 하나 떴다. 발신: 청명관리 본사.'], ['phone', '【청명관리(주)】 정규직 전환 면접 안내 — 장소: 본사 (뒷면)']] },
+];
+
+// 폭로 결말에 필요한 진실 조각 수
+const EXPOSE_NEED = 15;
+
+// 메인 의뢰 (순서대로 진행). gap = 앞 의뢰 완료 후 기다려야 하는 날짜
 const STORY_MISSIONS = [
+  // ── CHAPTER 1 수습 기간 ──
   {
-    id: 's1', stage: 0, theme: 'apartment', obj: 'resolve', diff: 1, tutorial: true,
+    id: 's1', chapter: 1, gap: 0, theme: 'apartment', obj: 'resolve', diff: 1, tutorial: true,
     title: '[첫 출근] 은하맨션 4.5층 민원', pay: 120000,
     req: () => true, reqText: '',
     intro: [['', '은하맨션. 엘리베이터 패널에는 정말로 "4.5"라는 버튼이 그려져 있다.'], ['me', '...누르면 되는 거겠지.']],
@@ -61,33 +79,113 @@ const STORY_MISSIONS = [
     doc: 't2',
   },
   {
-    id: 's2', stage: 1, theme: 'store', obj: 'erase', diff: 2,
+    id: 's2', chapter: 1, gap: 2, theme: 'store', obj: 'erase', diff: 2,
     title: '[지원 요청] 새벽 3시의 손님 말소', pay: 180000,
-    req: (s) => rankIndex(s) >= 1, reqText: '랭크 "알바" 달성 시',
+    req: () => true, reqText: '',
+    notify: ['min', '신입! 새벽마트에 지원 요청 떴어. 나랑 같이 가자ㅋㅋ 틈새 확인해 봐'],
     intro: [['min', '오, 신입! 오늘 나랑 같은 현장이네. 근데 난 밖에서 망 볼게ㅋㅋ'], ['min', '새벽 3시 손님은 영수증을 좋아해. 절대 주지 마.'], ['me', '말소... 그러니까 없애라는 거죠?'], ['min', '응. 깔끔하게.']],
     outro: [['min', '오~ 해냈네? 근데 하람아.'], ['min', '방금 그거 떨어뜨린 거, 전부 내지는 마. 몇 개는 몸에 "먹이면" 진짜 세져.'], ['min', '팀장한텐 비밀이다?']],
     doc: 't1',
   },
   {
-    id: 's3', stage: 2, theme: 'subway', obj: 'stabilize', diff: 3,
+    id: 'c1n', chapter: 1, gap: 2, theme: 'store', obj: 'resolve', diff: 2,
+    title: '[개인 의뢰] 새벽마트 뒷면 창고', pay: 150000,
+    req: () => true, reqText: '',
+    notify: ['noeul', '하람 씨, 부탁 하나 해도 돼요? 틈새에 제 이름으로 올려 둘게요.'],
+    intro: [['noeul', '새벽마트 창고 뒷면에 제 물건이 있어요. 도망칠 때 두고 온 거.'], ['noeul', '저는 이제 뒷면에 못 들어가요. 들어가면... 못 나올 것 같아서.'], ['me', '뭔데요?'], ['noeul', '반쪽짜리 사원증이요. 나머지 반은 아직 회사에 있고.']],
+    outro: [['noeul', '...찾았네요. 고마워요.'], ['noeul', '청명 사원증은 반으로 찢어도 안 없어져요. 반쪽이 남아 있으면 회사는 아직 저를 직원으로 기억해요.'], ['noeul', '하람 씨는 찢을 일 없게 해요.']],
+    doc: 't16', flag: 'noeulTrust',
+  },
+  // ── CHAPTER 2 신호 불량 ──
+  {
+    id: 'c2s', chapter: 2, gap: 3, theme: 'pcbang', obj: 'erase', diff: 3,
+    title: '[주의] 별빛PC방 웃는 썸네일', pay: 220000,
+    req: (s) => rankIndex(s) >= 1, reqText: '랭크 "알바" 달성 시',
+    notify: ['seo', 'PC방 건은 위험해요. 휴대폰 화면이 깨지면 숫자 말고 눈으로 확인하세요.'],
+    intro: [['seo', '이번 건은 영상이에요. 끝까지 보면 안 되는 영상.'], ['seo', '그게 퍼지면서 근처 통신이 전부 오염됐어요. 하람 씨 휴대폰도 거짓말을 할 거예요.'], ['me', '휴대폰이... 거짓말을요?'], ['seo', '숫자를 믿지 말고, 몸을 믿으세요.']],
+    outro: [['', '모니터가 꺼지자, 휴대폰 화면도 조용해졌다.'], ['min', '봤지? 화면이 거짓말하는 거.'], ['min', '근데 하람아, 회사 앱도 똑같아. 틈새도 결국 화면이잖아.']],
+    doc: 't11',
+  },
+  {
+    id: 's3', chapter: 2, gap: 3, theme: 'subway', obj: 'stabilize', diff: 3,
     title: '[긴급] 환승역 0호선 균열 안정화', pay: 240000,
-    req: (s) => rankIndex(s) >= 2, reqText: '랭크 "숙련 알바" 달성 시',
+    req: () => true, reqText: '',
+    notify: ['seo', '환승역 균열 건, 하람 씨 이름으로 배정했어요. 민재 씨가 먼저 들어가 있어요.'],
     intro: [['seo', '0호선 균열이 세 군데로 늘었어요. 민재 씨가 먼저 들어가 있습니다.'], ['seo', '하람 씨. 민재 씨가 뭘 "줍고" 있는지 보이면, 저한테 알려 주세요.']],
     outro: [['', '마지막 앵커가 박히자, 선로 저편에서 민재가 손을 흔들었다.'], ['min', '먼저 가. 난 여기서 좀 더 주울 게 있어.'], ['me', '민재 씨, 팀장님이—'], ['min', '알아. 근데 하람아, 나 요즘 뒷면이 더 편하다?'], ['', '돌아보았을 때, 승강장에는 아무도 없었다.']],
     doc: 't4', flag: 'minjaeGone',
   },
   {
-    id: 's4', stage: 3, theme: 'school', obj: 'erase', diff: 4, boss: 'flyer',
+    id: 'c2t', chapter: 2, gap: 2, theme: 'subway', obj: 'deep', stages: 3, finalObj: 'resolve', diff: 3,
+    title: '[비공식] 0호선 아래, 민재의 신호', pay: 200000,
+    req: () => true, reqText: '',
+    notify: ['noeul', '민재 휴대폰 위치가 마지막으로 0호선 아래에서 잡혔대요. ...같이 찾아봐요.'],
+    intro: [['noeul', '민재가 마지막으로 보낸 위치예요. 0호선 승강장 아래.'], ['noeul', '깊이 내려가야 할 거예요. 무리하지 말고, 위험하면 바로 올라와요.']],
+    outro: [['', '가장 깊은 곳에서 민재의 휴대폰을 찾았다. 화면은 금이 갔지만 켜져 있다.'], ['', '보내지 못한 메시지가 하나 남아 있다.'], ['phone', '하람아 틈새 공고 보지마 그거 나야'], ['me', '...민재 씨?']],
+    doc: 't12',
+  },
+  // ── CHAPTER 3 틈새 ──
+  {
+    id: 'c3c', chapter: 3, gap: 3, theme: 'school', obj: 'resolve', diff: 3,
+    title: '[민원] 구 한별고 13번째 계단', pay: 260000,
+    req: (s) => rankIndex(s) >= 2, reqText: '랭크 "숙련 알바" 달성 시',
+    notify: ['unknown', '민재를 찾고 싶으면 학교로 가. 출석부부터 봐.'],
+    intro: [['unknown', '13번째 계단을 밟은 사람은 출석부에서 지워진대.'], ['unknown', '그런데 지워진 이름은 어디로 갈까?'], ['me', '누구세요?'], ['unknown', '...알바생. 너랑 같은.']],
+    outro: [['', '출석부의 마지막 장. 지워진 이름들 사이에 볼펜으로 적힌 이름이 있다.'], ['', '"박민재 — 틈새 공고 게시판으로 전출"'], ['me', '전출...?']],
+    doc: 't13',
+  },
+  {
+    id: 's4', chapter: 3, gap: 2, theme: 'school', obj: 'erase', diff: 4, boss: 'flyer',
     title: '[??] 폐교 게시판에 붙은 공고', pay: 300000,
-    req: (s) => rankIndex(s) >= 3, reqText: '랭크 "현장 조장" 달성 시',
+    req: () => true, reqText: '',
+    notify: ['unknown', '틈새를 열어 봐. 공고가 하나 늘었을 거야.'],
     intro: [['unknown', '민재를 찾고 싶으면 학교로 가.'], ['unknown', '틈새 공고가 처음 붙은 곳이야.'], ['', '게시판에는 낯익은 공고가 수백 장 겹쳐 붙어 있다. 맨 위의 한 장에만 사진이 있다.'], ['me', '...민재 씨?']],
     outro: [['min', '하...람아...'], ['min', '내가 먹인 것들... 결국 날 먹더라. 웃기지.'], ['min', '청명은... 치우는 데가 아니야. 키우는 데야.'], ['min', '다 먹이지 마. 다 내지도 마. 너는... 너로 남아.'], ['', '민재의 명찰만이 바닥에 떨어져 있었다.']],
     doc: 't3', reward: 'mincard',
   },
   {
-    id: 's5', stage: 4, theme: 'hq', obj: 'finale', diff: 5, boss: 'suit',
+    id: 'c3h', chapter: 3, gap: 3, theme: 'hq', obj: 'resolve', diff: 4,
+    title: '[내부 점검] 청명 지점 사무동', pay: 300000,
+    req: () => true, reqText: '',
+    notify: ['seo', '지점 사무동 점검 인력이 필요해요. ...하람 씨가 가 주세요. 다른 사람은 안 돼요.'],
+    intro: [['seo', '지점 사무동이에요. 서류 정리만 하면 돼요.'], ['seo', '...보이는 서류는 전부 읽지 마세요. 읽으면 돌이킬 수 없어요.'], ['me', '팀장님은 읽어 보셨어요?'], ['seo', '...다녀오세요.']],
+    outro: [['', '확산팀 사무실. 모니터마다 예약된 게시물이 줄지어 있다.'], ['', '"4.5층 후기", "0호선 막차 썰", "웃는 썸네일 원본 구함"…'], ['', '그리고 맨 아래, 아직 게시되지 않은 글 하나.'], ['phone', '[예약 게시물] 형광 조끼 알바생이 세상을 뒤집는다는 소문 — 게시 예정일: 미정'], ['me', '...이건, 나잖아.']],
+    doc: 't14',
+  },
+  // ── CHAPTER 4 배양실 ──
+  {
+    id: 'c4a', chapter: 4, gap: 3, theme: 'apartment', obj: 'stabilize', diff: 4, jammed: true,
+    title: '[감사팀] 은하맨션 전면 재점검', pay: 330000,
+    req: (s) => rankIndex(s) >= 3, reqText: '랭크 "현장 조장" 달성 시',
+    notify: ['ryu', '감사팀 류입니다. 은하맨션 재점검에 동행 바랍니다. 거부권은 없습니다.'],
+    intro: [['ryu', '감사팀 류 과장입니다. 윤하람 씨, 당신의 제출 기록을 봤습니다.'], ['ryu', '오늘 현장은 통신이 전부 오염돼 있습니다. 화면이 뭐라고 하든 앵커만 박으세요.'], ['ryu', '저는 밖에서 보겠습니다. 당신이 무엇을 줍는지.']],
+    outro: [['ryu', '...생각보다 깨끗하네요.'], ['ryu', '하나만 알려 드리죠. 이 건물에서 괴담이 처음 시작된 날짜가 청명 설립일과 같습니다.'], ['ryu', '2월 30일. 우연일까요.']],
+    doc: 't17',
+  },
+  {
+    id: 'c4f', chapter: 4, gap: 3, theme: 'hq', obj: 'deep', stages: 4, finalObj: 'resolve', diff: 4,
+    title: '[극비] 3번 창고 — 배양실', pay: 320000,
+    req: () => true, reqText: '',
+    notify: ['unknown', '3번 창고. 네가 낸 것들이 다 거기 있어. 직접 봐.'],
+    intro: [['unknown', '배양실은 본사 밑, 창고 밑, 그 밑에 있어.'], ['unknown', '내려갈수록 네 이름이 흐려질 거야. 그래도 봐야 해.']],
+    outro: [['', '가장 깊은 선반. 하람이 제출했던 아티팩트들이 번호표를 단 채 숨을 쉬고 있다.'], ['', '선반마다 이름표가 붙어 있다. 아르바이트생들의 이름이다.'], ['', '빈 이름표 하나에는 아직 아무것도 적혀 있지 않다.']],
+    doc: 't15',
+  },
+  {
+    id: 'c4s', chapter: 4, gap: 2, theme: 'store', obj: 'resolve', diff: 5,
+    title: '[개인 의뢰] 서경의 첫 현장', pay: 350000,
+    req: () => true, reqText: '',
+    notify: ['seo', '하람 씨. 개인적인 부탁이 있어요. 근무 기록에는 남기지 않을게요.'],
+    intro: [['seo', '새벽마트예요. 제가 처음 알바로 들어간 현장.'], ['seo', '거기 뒷면 어딘가에 제 명찰이 있을 거예요. 이름이... 잘 기억나지 않아서요.'], ['me', '팀장님 이름이요?'], ['seo', '서경. 이라고 다들 부르죠.']],
+    outro: [['', '바래고 젖은 명찰. 이름 칸의 글자가 반쯤 지워져 있다.'], ['seo', '..."서"까지는 맞네요. 나머지는 뭐였을까.'], ['seo', '고마워요, 하람 씨. 곧 본사에서 연락이 올 거예요. 그때는—'], ['seo', '그때는 하람 씨가 원하는 대로 해요.']],
+    doc: 't7',
+  },
+  // ── CHAPTER 5 청명 ──
+  {
+    id: 's5', chapter: 5, gap: 2, theme: 'hq', obj: 'finale', diff: 5, boss: 'suit',
     title: '[정규직 면접] 청명관리 본사', pay: 0,
-    req: (s) => rankIndex(s) >= 4 || s.truths.length >= 7, reqText: '랭크 "특별 계약자" 또는 진실 조각 7개',
+    req: (s) => rankIndex(s) >= 4 || s.truths.length >= EXPOSE_NEED, reqText: `랭크 "특별 계약자" 또는 진실 조각 ${EXPOSE_NEED}개`,
+    notify: ['seo', '본사에서 하람 씨를 찾아요. 마지막 면접입니다.'],
     intro: [['seo', '하람 씨, 축하해요. 본사에서 정규직 면접 제안이 왔어요.'], ['seo', '...본사는 표면에 없어요. 처음부터 그랬어요.'], ['seo', '가세요. 저도 거기서 면접을 봤으니까.']],
     outro: [],
     doc: 't10',
@@ -106,35 +204,44 @@ const TRUTHS = {
   t8: { title: '배양실 사진 (출력물)', text: '철제 선반 위에 아티팩트가 빼곡하다.\n사진을 오래 보면, 그것들이 숨 쉬는 것처럼 보인다.\n뒷면에 메모: "먹이는 믿음이다."' },
   t9: { title: '정규직 근로계약서 (초안)', text: '제1조 갑은 을의 "이야기"를 영구히 귀속한다.\n제2조 을은 퇴사할 수 없다. 을이 곧 회사이기 때문이다.\n제3조 급여는 안심으로 지급한다.' },
   t10: { title: '청명(淸明)의 정의', text: '"누군가 이상한 것을 치우고 있으니 괜찮다."\n그 믿음이야말로 이 도시에서 가장 크게 퍼진 밈이다.\n청명은 그 믿음으로 존재한다.' },
+  t11: { title: '"틈새" 앱 권한 목록', text: '위치 · 연락처 · 카메라 · 마이크 · 기억\n※ "기억" 권한은 거부할 수 없습니다.\n※ 이 앱은 사용자의 절박함을 읽습니다.' },
+  t12: { title: '민재의 임시 저장 메시지', text: '하람아 틈새 공고 보지마 그거 나야\n누르면 너도 들어와\n여기는 따뜻해 근데 이상해 나 이름이 기억이' },
+  t13: { title: '구 한별고 출석부 사본', text: '3학년 2반. 지워진 이름 41명.\n지워진 날짜는 모두 같다: 2월 30일.\n비고란: "청명관리 인수 처리"' },
+  t14: { title: '확산팀 예약 게시물 목록', text: '예약 1. 4.5층 후기 (추천 조작 필요)\n예약 2. 새벽 3시 편의점 썰 v3\n예약 3. 형광 조끼 알바생 목격담 — 게시일 미정\n※ 3번은 대상자 전환 이후 게시할 것.' },
+  t15: { title: '배양실 관리 일지', text: '17번 선반 상태 양호. 반응: 웃음.\n22번 선반 이상. 반응: 이름을 부름.\n신규 입고 예정: 윤하람 제출분 일체.' },
+  t16: { title: '반쪽짜리 사원증', text: '청명관리 현장지원팀\n이름: 노■\n※ 반쪽만 남은 사원증은 퇴사 처리되지 않는다.' },
+  t17: { title: '회수 불가 인력 명단', text: '김○○ — 뒷면 체류 중 연락 두절\n박민재 — 전환 완료\n노○ — 도주 (사원증 미회수)\n윤하람 — 관찰 중' },
+  t18: { title: '청명 사보 — 이달의 알바', text: '"우리가 있어 도시가 잠듭니다."\n이달의 우수 알바: (사진 없음)\n※ 우수 알바는 정규직 면접 대상자로 자동 추천된다.' },
+  t19: { title: '도시 괴담 분포도', text: '괴담 발생 지점을 이으면 원이 된다.\n원의 중심: 청명관리 본사.\n원은 매주 조금씩 넓어지고 있다.' },
+  t20: { title: '최초의 공고문', text: '【청명관리】 야간 시설 정리 / 일급 ₩120,000\n게시일: 2월 30일\n지원자: 1명 — 이름: 서■' },
 };
-const TRUTH_ORDER = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10'];
+const TRUTH_ORDER = ['t2', 't1', 't16', 't11', 't4', 't12', 't13', 't3', 't14', 't17', 't15', 't7', 't10', 't5', 't6', 't8', 't9', 't18', 't19', 't20'];
+// 현장에서 무작위로 발견되거나 노을과 거래해 얻는 문서
+const RANDOM_DOCS = ['t5', 't6', 't8', 't9', 't18', 't19', 't20'];
 
-// 날짜/조건 기반 메시지
+// 날짜/조건 기반 메시지 (메인 의뢰 알림은 checkMessages에서 따로 보낸다)
 const DAILY_MESSAGES = [
-  { id: 'd2min', when: (s) => s.day >= 2 && s.storyStage >= 1, from: 'min', text: '신입 ㅎㅇ 나 민재. 팀장이 번호 줬어ㅋㅋ 사무소 오면 인사해~' },
+  { id: 'd2min', when: (s) => s.day >= 2 && storyDone(s, 's1') && !s.flags.minjaeGone, from: 'min', text: '신입 ㅎㅇ 나 민재. 팀장이 번호 줬어ㅋㅋ 사무소 오면 인사해~' },
   { id: 'd3unk', when: (s) => s.day >= 3, from: 'unknown', text: '제출한 아티팩트가 어디로 가는지 궁금하지 않아?' },
-  { id: 'd4land', when: (s) => s.day >= 4, from: 'landlord', text: '월세 날짜 기억하시죠? 7일마다예요~' },
+  { id: 'd4land', when: (s) => s.day >= 4, from: 'landlord', text: '월세 날짜 기억하시죠? 7일마다예요~ 동네 시세가 자꾸 올라서, 미리 말씀드려요.' },
   { id: 'd5noeul', when: (s) => s.day >= 5, from: 'noeul', text: '새벽마트 야간 노을입니다. 뒷문으로 오세요. 그거, 회사보다 비싸게 받아 드려요.' },
-  { id: 'r2seo', when: (s) => rankIndex(s) >= 1 && s.storyStage === 1, from: 'seo', text: '알바 승급 축하해요. 새벽마트 쪽 지원 요청이 들어왔어요. 틈새에서 확인하세요.' },
-  { id: 'r3seo', when: (s) => rankIndex(s) >= 2 && s.storyStage === 2, from: 'seo', text: '환승역 균열 건, 하람 씨 이름으로 배정했어요. 민재 씨도 같이 들어갑니다.' },
   { id: 'gone1', when: (s) => s.flags.minjaeGone, from: 'min', text: '(읽지 않음)' },
   { id: 'gone2', when: (s) => s.flags.minjaeGone && s.day >= s.flags.minjaeGoneDay + 1, from: 'seo', text: '민재 씨는 개인 사정으로 그만뒀어요. 더 묻지 마세요.' },
   { id: 'gone3', when: (s) => s.flags.minjaeGone && s.day >= s.flags.minjaeGoneDay + 2, from: 'unknown', text: '민재는 그만두지 않았어. 틈새를 잘 봐. 공고가 하나 늘었을 거야.' },
   { id: 'sus50', when: (s) => s.suspicion >= 50, from: 'seo', text: '요즘 제출량이 좀 적네요? 감사팀이 관심을 보이고 있어요. 참고하세요.' },
   { id: 'cont40', when: (s) => s.contamination >= 40, from: 'noeul', text: '하람 씨, 요즘 그림자가 좀 늦게 따라오던데. 조심해요.' },
   { id: 'cont70', when: (s) => s.contamination >= 70, from: 'unknown', text: '거의 다 왔어. 이쪽은 편해. 민재도 그랬잖아.' },
-  { id: 'truth5', when: (s) => s.truths.length >= 5, from: 'unknown', text: '조각을 7개 모으면 본사로 가는 길이 보일 거야. 정규직 면접 같은 거 없이도.' },
-  { id: 'r4', when: (s) => rankIndex(s) >= 3 && s.storyStage === 3, from: 'unknown', text: '민재를 찾고 싶으면, 틈새를 열어 봐.' },
-  { id: 'fin', when: (s) => s.storyStage === 4 && (rankIndex(s) >= 4 || s.truths.length >= 7), from: 'seo', text: '본사에서 하람 씨를 찾아요. 마지막 면접입니다.' },
+  { id: 'truth8', when: (s) => s.truths.length >= 8, from: 'unknown', text: `조각을 ${EXPOSE_NEED}개 모으면 본사로 가는 길이 보일 거야. 정규직 면접 같은 거 없이도.` },
+  { id: 'ch3ryu', when: (s) => storyDone(s, 'c3h'), from: 'ryu', text: '감사팀입니다. 지점 사무동 출입 기록에 귀하의 이름이 있더군요. 곧 뵙겠습니다.' },
 ];
 
 // NPC 잡담
 const CHATS = {
   seo: [
-    { when: (s) => s.storyStage === 1, lines: [['seo', '첫 현장 수고했어요. 보고서는 제가 쓸게요.'], ['seo', '...아티팩트는 전부 제출한 거죠?']] },
+    { when: (s) => storyDone(s, 's1') && !storyDone(s, 's2'), lines: [['seo', '첫 현장 수고했어요. 보고서는 제가 쓸게요.'], ['seo', '...아티팩트는 전부 제출한 거죠?']] },
     { when: (s) => s.suspicion >= 50, lines: [['seo', '하람 씨. 요즘 제출량이 적어요.'], ['seo', '감사팀은 저보다 덜 친절해요. 명심하세요.']] },
-    { when: (s) => s.flags.minjaeGone && s.storyStage === 3, lines: [['me', '팀장님, 민재 씨는...'], ['seo', '그만뒀어요.'], ['seo', '...하람 씨는 그만두지 마세요. 진심이에요.']] },
-    { when: (s) => s.storyStage >= 4, lines: [['seo', '하람 씨는 이 일이 왜 이렇게 시급이 좋은지 생각해 본 적 있어요?'], ['seo', '...대답 안 해도 돼요. 저도 생각 안 하려고 노력 중이니까.']] },
+    { when: (s) => s.flags.minjaeGone && !storyDone(s, 's4'), lines: [['me', '팀장님, 민재 씨는...'], ['seo', '그만뒀어요.'], ['seo', '...하람 씨는 그만두지 마세요. 진심이에요.']] },
+    { when: (s) => storyDone(s, 's4'), lines: [['seo', '하람 씨는 이 일이 왜 이렇게 시급이 좋은지 생각해 본 적 있어요?'], ['seo', '...대답 안 해도 돼요. 저도 생각 안 하려고 노력 중이니까.']] },
     { when: () => true, lines: [['seo', '오늘도 무사히 퇴근하세요. 그게 제일 중요해요.']] },
   ],
   noeul: [

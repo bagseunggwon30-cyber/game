@@ -361,7 +361,7 @@ class StatusView {
       };
       meter('의심도', s.suspicion, 100, COL.orange, 0);
       meter('오염도', s.contamination, 100, COL.pink, 1);
-      meter('진실 조각', s.truths.length, 10, COL.cyan, 2);
+      meter('진실 조각', s.truths.length, TRUTH_ORDER.length, COL.cyan, 2);
       Gfx.text(ctx, `은닉 ${s.stash.length} · 흡수 ${s.absorbed.length}`, gx, gy + 78, C.sub, { small: true });
       Gfx.text(ctx, `제출 ${s.submitted} · 임무 ${s.record.missions}`, gx, gy + 90, C.sub, { small: true });
       Gfx.text(ctx, `마음 지도 ${s.skills.length - 1} · SP ${s.sp || 0}`, gx, gy + 102, '#a99cff', { small: true });
@@ -376,8 +376,8 @@ class StatusView {
       for (const k of abs) { Gfx.text(ctx, ABILITIES[k].name, L + 6, yy, C.text, { small: true }); Gfx.text(ctx, ABILITIES[k].desc, L + 80, yy, C.sub, { small: true }); yy += 13; }
       yy += 4;
       head('장비', COL.yellow);
-      const wpn = WEAPONS[s.weapon];
-      Gfx.text(ctx, wpn.name, L + 6, yy, C.text, { small: true }); Gfx.text(ctx, wpn.desc, L + 80, yy, C.sub, { small: true }); yy += 13;
+      const wpn = weaponOf(s);
+      Gfx.text(ctx, wpn.name + (wpn.lv ? ' +' + wpn.lv : ''), L + 6, yy, C.text, { small: true }); Gfx.text(ctx, wpn.desc, L + 80, yy, C.sub, { small: true }); yy += 13;
       for (const g of s.gear) { Gfx.text(ctx, GEAR[g].name, L + 6, yy, C.text, { small: true }); Gfx.text(ctx, GEAR[g].desc, L + 120, yy, C.sub, { small: true }); yy += 13; }
       yy += 4;
       head('흡수한 아티팩트', COL.pink);

@@ -61,10 +61,14 @@ class TitleScene {
     Game.state = newState();
     Game.state.jobs = genJobs(Game.state);
     Storage.del(SAVE_KEY);
-    Game.fadeTo(() => Game.setScene(new StoryScene(PROLOGUE, (i) => (i >= 7 ? 'office' : 'room'), () => {
-      const job = storyJobFor(Game.state);
-      Game.fadeTo(() => Game.setScene(new MissionScene(job)));
-    })), 30);
+    Game.fadeTo(() => {
+      Game.setScene(new StoryScene(PROLOGUE, (i) => (i >= 7 ? 'office' : 'room'), () => {
+        const job = storyJobFor(Game.state);
+        Game.fadeTo(() => Game.setScene(new MissionScene(job)));
+      }));
+      Game.state.chapterSeen = 1;
+      Game.push(new ChapterCard(CHAPTERS[0]));
+    }, 30);
   }
   continueGame() {
     const s = loadGame();
@@ -93,6 +97,30 @@ class TitleScene {
     const f = SPR.player.R[2 + Math.floor(this.t / 7) % 4];
     ctx.drawImage(back ? SPR.follower.R[2 + Math.floor(this.t / 7) % 4] : f, 40, 166);
     Gfx.text(ctx, 'v1.0', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+  }
+}
+
+// 챕터 타이틀 카드
+class ChapterCard {
+  constructor(C, onDone) { this.C = C; this.onDone = onDone; this.t = 0; this.covers = true; this.wantsDim = false; }
+  update() {
+    this.t++;
+    if ((this.t > 40 && (Input.pressed('confirm') || Input.pressed('cancel'))) || this.t > 260) {
+      Game.pop(this);
+      if (this.onDone) this.onDone();
+    }
+  }
+  draw(ctx) {
+    const a = clamp(this.t / 30, 0, 1) * clamp((260 - this.t) / 30, 0, 1);
+    ctx.fillStyle = `rgba(6,5,12,${Math.min(0.94, a + 0.3)})`; ctx.fillRect(0, 0, VW, VH);
+    ctx.globalAlpha = a;
+    if (!this.big) this.big = Gfx.bigText(this.C.title, '#f4f0e6', 3);
+    Gfx.text(ctx, `CHAPTER ${this.C.n}`, VW / 2, 66, UI.C.accent, { align: 'center', bold: true });
+    ctx.fillStyle = UI.C.accent; ctx.fillRect(VW / 2 - 20, 82, 40, 1);
+    ctx.drawImage(this.big, Math.round((VW - this.big.width) / 2), 90);
+    Gfx.text(ctx, this.C.sub, VW / 2, 142, UI.C.sub, { align: 'center' });
+    Gfx.text(ctx, `월세 ${won(this.C.rent)} / 주 · 위험도 ${this.C.diff[0]}~${this.C.diff[1]}`, VW / 2, 160, UI.C.mute, { align: 'center', small: true });
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -172,7 +200,8 @@ class ResultScene {
     if (this.result === 'success' || this.result === 'extract') {
       const full = this.result === 'success';
       const payMul = deep ? 0.35 + 0.3 * deep.cleared + (full ? 0.3 : 0) : 1;
-      let pay = Math.round(job.pay * payMul / 1000) * 1000;
+      const wm = s.weekMod === 'raise' ? 1.25 : s.weekMod === 'quiet' ? 0.9 : 1;
+      let pay = Math.round(job.pay * payMul * wm / 1000) * 1000;
       const noDmg = run.damage === 0;
       if (noDmg) pay = Math.round(pay * 1.1);
       const r = addMoney(s, pay + run.cash);
@@ -185,8 +214,12 @@ class ResultScene {
       this.log.push(['신뢰', '+' + tr, COL.cyan]);
       addSuspicion(s, -5);
       s.record.missions++;
+      s.weekStats = s.weekStats || { missions: 0 };
+      s.weekStats.missions++;
+      this.log.push(['주간 목표', `${s.weekStats.missions}/${WEEK_QUOTA}`, s.weekStats.missions >= WEEK_QUOTA ? COL.green : COL.dim]);
       if (this.story && full) {
         s.storyStage++;
+        s.lastStoryDay = s.day;
         if (this.story.flag) { s.flags[this.story.flag] = true; s.flags.minjaeGoneDay = s.day; }
         if (this.story.id === 's1') { s.pendingDialogs = (s.pendingDialogs || []).concat([MINJAE_MEET]); s.jobs = genJobs(s); }
         this.log.push(['이야기 진행', '◆', COL.pink]);
@@ -245,13 +278,14 @@ class ResultScene {
     if (how === 'submit') {
       const money = Math.round(R.submit * (1 + 0.02 * s.stats.luk) / 1000) * 1000;
       const r = addMoney(s, money);
-      addTrust(s, R.trust);
+      const tr = Math.round(R.trust * (s.weekMod === 'audit' ? 1.5 : 1));
+      addTrust(s, tr);
       s.submitted++;
-      this.log.push([`제출: ${a.name}`, won(r.got) + ` · 신뢰+${R.trust}`, '#c8d0e0']);
+      this.log.push([`제출: ${a.name}`, won(r.got) + ` · 신뢰+${tr}`, '#c8d0e0']);
       Sound.play('stamp');
     } else {
       s.stash.push(id);
-      const sus = Math.round(R.sus * (1 - skillMods(s).sus));
+      const sus = Math.round(R.sus * (1 - skillMods(s).sus) * (s.weekMod === 'audit' ? 1.5 : 1));
       addSuspicion(s, sus);
       this.log.push([`은닉: ${a.name}`, `의심+${sus}`, COL.orange]);
       Sound.play('pickup');
@@ -304,8 +338,8 @@ class ResultScene {
       Gfx.para(ctx, artifactDesc(id).replace(/^\[.*?\] /, ''), 100, 97, VW - 136, '#c8c4d8', { small: true, maxLines: 4 });
       const money = Math.round(R.submit * (1 + 0.02 * s.stats.luk) / 1000) * 1000;
       const opts = [
-        { t: '제출한다', d: `${won(money)} · 신뢰 +${R.trust}`, c: '#c8d0e0', ac: '#c8d0e0' },
-        { t: '몰래 챙긴다', d: `의심도 +${Math.round(R.sus * (1 - skillMods(s).sus))}  (현재 ${s.suspicion})`, c: COL.orange, ac: COL.orange },
+        { t: '제출한다', d: `${won(money)} · 신뢰 +${Math.round(R.trust * (s.weekMod === 'audit' ? 1.5 : 1))}`, c: '#c8d0e0', ac: '#c8d0e0' },
+        { t: '몰래 챙긴다', d: `의심도 +${Math.round(R.sus * (1 - skillMods(s).sus) * (s.weekMod === 'audit' ? 1.5 : 1))}  (현재 ${s.suspicion})`, c: COL.orange, ac: COL.orange },
       ];
       opts.forEach((o, i) => {
         const x = 24 + i * ((VW - 48) / 2 + 2), w = (VW - 48) / 2 - 2, y = 158, sel = this.choice === i;
@@ -357,7 +391,7 @@ class EndingScene {
       const seen = endingsSeen();
       Gfx.text(ctx, `결말 수집 ${seen.length}/5`, VW / 2, 130, COL.white, { align: 'center' });
       const s = Game.state;
-      if (s) Gfx.text(ctx, `DAY ${s.day} · 임무 ${s.record.missions} · 흡수 ${s.absorbed.length} · 제출 ${s.submitted} · 진실 ${s.truths.length}/10`, VW / 2, 148, COL.dim, { align: 'center', small: true });
+      if (s) Gfx.text(ctx, `DAY ${s.day} · 임무 ${s.record.missions} · 흡수 ${s.absorbed.length} · 제출 ${s.submitted} · 진실 ${s.truths.length}/${TRUTH_ORDER.length}`, VW / 2, 148, COL.dim, { align: 'center', small: true });
       if (this.t > 60 && Math.floor(this.t / 20) % 2 === 0) Gfx.text(ctx, 'Z 타이틀로', VW / 2, 180, COL.yellow, { align: 'center', small: true });
       ctx.globalAlpha = 1;
     }
