@@ -151,16 +151,18 @@ const GEAR = {
 
 const RANKS = [
   { name: '수습 알바', need: 0 },
-  { name: '알바', need: 25 },
-  { name: '숙련 알바', need: 60 },
-  { name: '현장 조장', need: 110 },
-  { name: '특별 계약자', need: 170 },
+  { name: '알바', need: 30 },
+  { name: '숙련 알바', need: 85 },
+  { name: '현장 조장', need: 160 },
+  { name: '특별 계약자', need: 260 },
 ];
 
 const OBJECTIVES = {
   resolve: { name: '원인해소', desc: '흩어진 단서를 모아 괴담의 원인을 찾아 해소한다.', col: '#62d6e8' },
   erase: { name: '말소', desc: '괴담의 핵이 된 존재를 찾아 말소한다.', col: '#ff5a6a' },
   stabilize: { name: '안정화', desc: '현장의 균열 3곳에 안정화 앵커를 설치한다.', col: '#6fd08c' },
+  deep: { name: '심층 탐사', desc: '뒷면 깊이 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다.', col: '#b86cff' },
+  descend: { name: '하강', desc: '더 깊은 균열을 찾아 내려간다.', col: '#b86cff' },
 };
 
 const STAT_INFO = {
@@ -174,6 +176,7 @@ const STAT_INFO = {
 const STAT_KEYS = ['vit', 'mnd', 'str', 'agi', 'per', 'luk'];
 
 // 테마별 민원 문구 (알바 공고 제목)
+const DEEP_TITLES = ['[심층 탐사] 뒷면 하층부 조사', '[심층 탐사] 끝이 보이지 않는 균열', '[심층 탐사] 괴담의 뿌리 추적', '[심층 탐사] 미확인 층 매핑'];
 const JOB_TITLES = {
   apartment: ['엘리베이터에 없는 층 버튼이 생겼다는 민원', '복도 끝 현관문이 매일 하나씩 늘어남', '4층과 5층 사이에서 발소리가 들림', '관리실 CCTV에 같은 주민이 열두 명'],
   store: ['새벽 3시마다 계산대에 영수증이 쌓임', '냉장고 안쪽에서 누가 문을 두드림', '아무도 없는데 "어서오세요"가 계속 울림', '바코드가 찍히지 않는 손님 목격담'],

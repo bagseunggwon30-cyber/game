@@ -9,6 +9,7 @@ const MAXFALL = 6.5;
 class Level {
   constructor(W, H) {
     this.W = W; this.H = H;
+    this.rowH = H; this.trimOff = 10.2;   // 배경 벽 장식 줄 위치
     this.f = new Uint8Array(W * H);
     this.b = new Uint8Array(W * H);
   }
@@ -193,6 +194,11 @@ const DECOR_Y = { sign: 52, window: 50, poster: 40, map: 46, screen: 60, board: 
 
 // ───────────── 절차 생성 ─────────────
 function generateMission(spec) {
+  if (!spec.tutorial && !spec.linear && typeof generateRoomMission === 'function') {
+    const r = generateRoomMission(spec);
+    if (r) return r;
+  }
+  if (spec.obj === 'descend') spec = Object.assign({}, spec, { obj: 'stabilize' });
   const rng = new RNG(spec.seed || 1);
   const th = THEMES[spec.theme];
   const d = spec.diff;

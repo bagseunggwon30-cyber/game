@@ -181,6 +181,17 @@ function genJobs(s) {
     jobs.push(makeJob(s, rng, themes[i], obj, rng.int(lo, hi)));
   }
   jobs.sort((a, b) => a.diff - b.diff);
+  // 심층 탐사 (다단계 · 계속/철수 선택)
+  if (s.storyStage >= 1) {
+    const d = clamp(r + 1, 1, 5);
+    const j = makeJob(s, rng, rng.pick(REGULAR_THEMES), 'resolve', d);
+    j.obj = 'deep';
+    j.finalObj = rng.pick(['resolve', 'erase', 'stabilize']);
+    j.stages = d <= 2 ? 3 : d <= 4 ? 4 : 5;
+    j.title = rng.pick(DEEP_TITLES);
+    j.pay = Math.round(BASE_PAY[d] * 1.25 * (1 + 0.03 * s.stats.luk) / 1000) * 1000;
+    jobs.push(j);
+  }
   // 교란을 겪은 뒤에는 출처 불명 공고가 끼어든다
   if ((s.flags.jamSeen || s.contamination >= 35) && rng.chance(0.4)) {
     const j = makeJob(s, rng, rng.pick(REGULAR_THEMES), rng.pick(objs), clamp(r + 2, 2, 5));

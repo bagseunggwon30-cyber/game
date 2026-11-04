@@ -308,12 +308,13 @@ class HubScene {
         const locked = j.locked;
         return {
           label: (j.story ? '◆ ' : '') + (j.jammed ? glitchText(j.title, 0.15) : j.title.replace(/^\[.*?\] /, '')),
-          sub: j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
+          sub: j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : j.obj === 'deep' ? `심층 ${j.stages}층 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
           subCol: j.jammed ? '#62d6e8' : (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
-          right: j.pay ? won(j.pay) : '???',
+          right: j.obj === 'deep' ? '최대 ' + won(Math.round(j.pay * (0.65 + 0.3 * j.stages) / 1000) * 1000) : j.pay ? won(j.pay) : '???',
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
+            j.obj === 'deep' ? `${THEMES[j.theme].name}의 뒷면을 ${j.stages}층까지 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다. 마지막 층: ${OBJECTIVES[j.finalObj].name}. 쓰러지면 모두 잃는다.` :
             j.jammed ? `출처를 알 수 없는 공고. 보수는 1.6배지만 현장 전체에 통신 교란이 깔려 있다. (${(OBJECTIVES[j.obj] || { name: '최종' }).name})` : `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
           onSelect: () => this.confirmJob(j),
         };

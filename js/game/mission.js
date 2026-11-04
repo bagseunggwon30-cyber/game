@@ -1,18 +1,21 @@
 'use strict';
 // ───────────────────────── 임무 씬 (실제 플레이) ─────────────────────────
 class MissionScene {
-  constructor(job) {
+  constructor(job, carry) {
     this.job = job;
+    this.carry = carry || null;
     this.s = Game.state;
     this.D = derive(this.s);
     this.story = job.story ? STORY_MISSIONS.find((m) => m.id === job.story) : null;
-    this.diff = job.diff;
+    // 심층 탐사: 단계마다 새 맵, 마지막 단계에서 진짜 목표
+    this.deep = job.obj === 'deep' ? { stage: carry ? carry.stage : 1, stages: job.stages } : null;
+    this.diff = this.deep ? Math.min(5, job.diff + Math.floor((this.deep.stage - 1) / 2)) : job.diff;
     this.theme = job.theme;
     this.th = THEMES[job.theme];
-    this.obj = job.obj;
+    this.obj = this.deep ? (this.deep.stage < this.deep.stages ? 'descend' : job.finalObj) : job.obj;
     const randomDoc = !this.story && Math.random() < 0.3 + 0.04 * this.s.stats.luk + this.D.m.docChance ? this.pickRandomDoc() : null;
     this.gen = generateMission({
-      theme: job.theme, obj: job.obj, diff: job.diff, seed: job.seed, luk: this.s.stats.luk,
+      theme: job.theme, obj: this.obj, diff: this.diff, seed: job.seed + (this.deep ? this.deep.stage * 7919 : 0), luk: this.s.stats.luk, deep: this.deep,
       tutorial: this.story && this.story.tutorial, doc: this.story ? this.story.doc : null, randomDoc,
       boss: this.story && this.story.boss, extraArt: this.D.m.extraArt, jammed: !!job.jammed,
     });
@@ -31,11 +34,15 @@ class MissionScene {
     this.time = 0;
     this.flipFx = 0;
     this.locked = false;
-    this.run = { found: [], cash: 0, docs: [], kills: 0, damage: 0, time: 0, boss: false };
+    this.run = carry ? carry.run : { found: [], cash: 0, docs: [], kills: 0, damage: 0, time: 0, boss: false, jamTime: 0, stagesCleared: 0 };
+    if (carry) {
+      const p = this.player;
+      p.hp = Math.min(p.maxHp, carry.hp); p.san = Math.min(p.maxSan, carry.san);
+      p.fear = carry.fear || 0; p.shield = carry.shield || 0;
+    }
     this.lastHopeUsed = false;
-    this.run.jamTime = 0;
-    // 통신 교란 상태
-    this.jamBase = job.jammed ? 0.5 : 0;
+    // 통신 교란 상태 (깊이 3부터 뒷면 전체가 잡음에 잠긴다)
+    this.jamBase = (job.jammed ? 0.5 : 0) + (this.deep && this.deep.stage >= 3 ? 0.12 * (this.deep.stage - 2) : 0);
     this.jam = { v: 0, src: 0, immune: 0, hackT: 0, lieT: 0, targets: {}, swap: false, fakeChips: [], hide: {}, objLie: null, layerLie: false, toastT: 420, eventT: rndi(2400, 4200), eventLeft: 0 };
     this.disp = { hp: this.player.hp, san: this.player.san, fear: 0 };
     this.objState = { clues: 0, cluesTotal: this.interacts.filter((o) => o.type === 'clue').length, anchors: 0, anchorsTotal: this.interacts.filter((o) => o.type === 'rift').length, complete: false, bossDone: false };
@@ -47,6 +54,16 @@ class MissionScene {
     this.glitchT = 0;
     this.noise = Gfx.makeCanvas(VW, VH);
     this.makeNoise();
+    // 방 지도 / 체크포인트 / 봉인 열쇠
+    this.visited = new Set();
+    this.curRoom = null;
+    this.checkpoint = null; this.cpUsed = false;
+    this.hasKey = false;
+    this.downHint = false;
+    if (this.obj === 'descend' && !this.interacts.some((o) => o.type === 'descend')) {
+      const ex = this.interacts.find((o) => o.type === 'exit');
+      if (ex) { ex.type = 'descend'; ex.layer = 'both'; }
+    }
     this.snapCamera();
   }
 
@@ -191,6 +208,7 @@ class MissionScene {
           if (d < 100) rate += e.type === 'watcher' ? 4 : 1.4;
         }
         if (this.boss && !this.boss.dead) rate += 2;
+        if (this.deep) rate += (this.deep.stage - 1) * 0.35;
         if (p.san < p.maxSan * 0.3) rate += 1.5;
         let mul = 1 - m.fearGain;
         if (hope) mul *= m.hopeNoFear ? 0 : 0.5;
@@ -220,7 +238,7 @@ class MissionScene {
     const p = this.player, J = this.jam;
     let src = this.jamBase;
     if (p.layer === 'back') {
-      for (const z of this.gen.jamZones || []) if (p.cx > z.x0 && p.cx < z.x1) src = Math.max(src, 0.75);
+      for (const z of this.gen.jamZones || []) if (p.cx > z.x0 && p.cx < z.x1 && (z.y0 == null || (p.cy > z.y0 && p.cy < z.y1))) src = Math.max(src, 0.75);
       let n = 0;
       for (const e of this.enemies) if (!e.dead && e.def.jam && e.layer === 'back' && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 100) n++;
       src = Math.max(src, Math.min(0.9, n * ENEMIES.notif.jam));
@@ -363,6 +381,16 @@ class MissionScene {
     const p = this.player;
     switch (o.type) {
       case 'entry':
+        if (this.deep) {
+          Game.push(new Menu({
+            title: '탐사를 마칠까?', w: 250, desc: true,
+            items: [
+              { label: '여기서 철수한다', desc: `지금까지 내려간 깊이(${this.run.stagesCleared || 0}단계)만큼 보수를 받는다. 주운 아티팩트는 챙긴다.`, onSelect: (m) => { m.close(); this.finish('extract'); } },
+              { label: '계속한다', desc: '아직 더 갈 수 있다.', onSelect: (m) => m.close() },
+            ],
+          }));
+          break;
+        }
         Game.push(new Menu({
           title: '현장에서 철수할까?', w: 230, desc: true,
           items: [
@@ -426,7 +454,50 @@ class MissionScene {
       case 'core':
         this.startFinaleTalk();
         break;
+      case 'descend':
+        this.reachDescend();
+        break;
+      case 'checkpoint':
+        o.done = true;
+        this.checkpoint = { x: o.x, y: o.y + o.h - p.h, layer: p.layer };
+        Sound.play('anchor');
+        this.toast('임시 앵커 설치 — 쓰러지면 한 번 여기서 다시 일어난다', COL.green);
+        for (let i = 0; i < 16; i++) this.particles.push({ x: o.x + 8, y: o.y + 12, vx: rnd(-1.5, 1.5), vy: rnd(-2, 0), life: 26, col: COL.green, size: 2 });
+        break;
+      case 'gate':
+        if (!this.hasKey) { Sound.play('deny'); this.floatText(p.cx, p.y - 10, '봉인되어 있다 — 열쇠가 필요하다', '#ff8a8a'); return; }
+        o.done = true;
+        for (const [x, y] of o.cells) this.lvl.set('both', x, y, T_EMPTY);
+        this.hasKey = false;
+        Sound.play('door'); Sound.play('resolve');
+        Gfx.shake(3, 14);
+        this.toast('봉인문이 열렸다', COL.yellow);
+        break;
     }
+  }
+
+  // ── 심층 탐사: 균열 도착 ──
+  reachDescend() {
+    const p = this.player;
+    this.run.stagesCleared = this.deep ? this.deep.stage : 0;
+    if (!this.deep) { this.finish('success'); return; }
+    // 균열 앞 휴식
+    const heal = 0.25;
+    p.hp = Math.min(p.maxHp, p.hp + p.maxHp * heal);
+    p.san = Math.min(p.maxSan, p.san + p.maxSan * heal);
+    p.fear = Math.max(0, p.fear - 40);
+    p.st.remove('panic');
+    Sound.play('anchor');
+    this.locked = true;
+    Game.push(new DeepRest(this));
+  }
+  descendNext() {
+    const p = this.player;
+    const carry = { stage: this.deep.stage + 1, run: this.run, hp: p.hp, san: p.san, fear: p.fear, shield: p.shield };
+    this.run.time += this.time;
+    this.ending = true;
+    Sound.play('flip');
+    Game.fadeTo(() => Game.setScene(new MissionScene(this.job, carry)), 40);
   }
 
   objText() {
@@ -435,6 +506,7 @@ class MissionScene {
     if (this.obj === 'stabilize') return `앵커 ${o.anchors}/${o.anchorsTotal}`;
     if (this.obj === 'erase') return o.complete ? '말소 완료' : '핵 말소';
     if (this.obj === 'finale') return '최상층으로';
+    if (this.obj === 'descend') return '균열을 찾아 내려가기';
     return '';
   }
 
@@ -453,7 +525,8 @@ class MissionScene {
   startArena() {
     const a = this.gen.arena;
     this.arenaActive = true;
-    for (let y = CEIL; y < a.gy; y++) { this.lvl.set('both', a.tx0 - 1, y, T_SOLID); this.lvl.set('both', a.tx1, y, T_SOLID); }
+    if (a.seal) for (const [x, y] of a.seal) this.lvl.set('both', x, y, T_SOLID);
+    else for (let y = CEIL; y < a.gy; y++) { this.lvl.set('both', a.tx0 - 1, y, T_SOLID); this.lvl.set('both', a.tx1, y, T_SOLID); }
     if (this.player.layer !== 'back') {
       this.setLayer('back');
       this.toast('뒷면으로 끌려 들어간다!', '#ff5a8a');
@@ -468,7 +541,7 @@ class MissionScene {
   onBossDefeated(boss) {
     const a = this.gen.arena;
     this.arenaActive = false;
-    for (let y = CEIL; y < a.gy; y++) { this.lvl.set('both', a.tx0 - 1, y, T_EMPTY); this.lvl.set('both', a.tx1, y, T_EMPTY); }
+    this.unsealArena();
     this.objState.complete = true; this.objState.bossDone = true;
     this.run.boss = true;
     this.addHope(20, '말소');
@@ -488,6 +561,24 @@ class MissionScene {
     this.boss = null;
     if (a.finale) { this.afterFinaleBoss(); return; }
     this.toast('말소 완료! 퇴근 문으로 →', COL.green);
+  }
+
+  unsealArena() {
+    const a = this.gen.arena;
+    if (a.seal) for (const [x, y] of a.seal) this.lvl.set('both', x, y, T_EMPTY);
+    else for (let y = CEIL; y < a.gy; y++) { this.lvl.set('both', a.tx0 - 1, y, T_EMPTY); this.lvl.set('both', a.tx1, y, T_EMPTY); }
+  }
+  resetArena() {
+    this.arenaActive = false;
+    this.unsealArena();
+    this.boss = null;
+    this.projectiles = this.projectiles.filter((pr) => pr.from === 'player');
+    for (const e of this.enemies) if (e.layer === 'back' && this.inArena(e.cx, e.cy)) e.dead = true;
+    Sound.setAmbience(this.player.layer === 'back' ? 'back' : 'front');
+  }
+  inArena(x, y) {
+    const a = this.gen.arena;
+    return a && x > a.x0 && x < a.x1 && (a.y0 == null || (y > a.y0 && y < a.y1));
   }
 
   completeObjective(msg) {
@@ -548,14 +639,29 @@ class MissionScene {
   finish(result) {
     if (this.ending) return;
     this.ending = true;
-    this.run.time = this.time;
+    this.run.time = (this.run.time || 0) + this.time;
     const p = this.player;
-    Game.fadeTo(() => Game.setScene(new ResultScene(this.job, result, this.run, { sanDeath: p.san <= 0 })));
+    if (this.deep && result === 'success') this.run.stagesCleared = this.deep.stages;
+    const deep = this.deep ? { cleared: this.run.stagesCleared || 0, stages: this.deep.stages } : null;
+    Game.fadeTo(() => Game.setScene(new ResultScene(this.job, result, this.run, { sanDeath: p.san <= 0, deep })));
   }
 
   die() {
     const p = this.player;
     if (p.dead) return;
+    if (this.checkpoint && !this.cpUsed) {
+      this.cpUsed = true;
+      if (this.arenaActive) this.resetArena();
+      const c = this.checkpoint;
+      p.x = c.x; p.y = c.y; p.vx = 0; p.vy = 0;
+      p.hp = Math.max(1, Math.round(p.maxHp * 0.5)); p.san = Math.max(1, Math.round(p.maxSan * 0.5));
+      p.fear = 20; p.st.remove('panic'); p.inv = 120;
+      if (p.layer !== c.layer) this.setLayer(c.layer, true);
+      this.snapCamera();
+      Sound.play('resolve'); Gfx.shake(4, 20);
+      this.toast('임시 앵커에서 다시 일어났다 (한 번뿐)', COL.green);
+      return;
+    }
     p.dead = true;
     this.locked = true;
     Sound.play('die');
@@ -734,6 +840,11 @@ class MissionScene {
           this.toast(`${ITEMS[k.id].name} 획득`, COL.white);
           break;
         }
+        case 'key':
+          this.hasKey = true;
+          Sound.play('artifact');
+          this.toast('봉인 열쇠를 얻었다 — 봉인문을 열 수 있다', COL.yellow);
+          break;
         case 'sanorb':
           p.san = Math.min(p.maxSan, p.san + 5);
           Sound.play('pickup');
@@ -782,7 +893,7 @@ class MissionScene {
       if (!h.shown && p.x > h.x) { h.shown = true; this.hintText = TUTORIAL_HINTS[h.key]; this.hintT = 420; Sound.play('phone'); }
     }
     for (const a of this.gen.ambush) {
-      if (!a.done && p.x > a.x && p.x < a.x1) {
+      if (!a.done && p.x > a.x && p.x < a.x1 && (a.y0 == null || (p.cy > a.y0 && p.cy < a.y1))) {
         a.done = true;
         for (const e of a.list) {
           const def = ENEMIES[e.type];
@@ -793,8 +904,17 @@ class MissionScene {
       }
     }
     const ar = this.gen.arena;
-    if (ar && !this.arenaActive && !this.objState.bossDone && !ar.finale && p.x > ar.x0 + 40) this.startArena();
-    if (ar && ar.finale && !this.finaleTalked && p.x > ar.x0 + 60) this.startFinaleTalk();
+    const inAr = ar && (ar.y0 == null ? true : p.onGround && p.cx > ar.x0 + 24 && p.cx < ar.x1 - 24 && p.cy > ar.y0 + 16 && p.cy < ar.y1);
+    if (ar && !this.arenaActive && !this.objState.bossDone && !ar.finale && inAr && p.x > ar.x0 + 40) this.startArena();
+    if (ar && ar.finale && !this.finaleTalked && inAr && p.x > ar.x0 + 60) this.startFinaleTalk();
+    // 방 이동 기록 (미니맵) + 위에서 떨어져 들어왔을 때 안내
+    if (this.gen.map) {
+      const rx = Math.floor(p.cx / (RW * TS)), ry = Math.floor(p.cy / (RH * TS));
+      const k = rx + ',' + ry;
+      if (this.curRoom && ry > this.curRoom.ry && !this.s.flags.hintDrop) { this.s.flags.hintDrop = true; this.showHint('발판 위에서 ↓를 길게 누르면 아래로 내려간다. (↓+점프도 가능)'); }
+      if (!this.curRoom || this.curRoom.k !== k) this.curRoom = { k, rx, ry };
+      this.visited.add(k);
+    }
   }
 
   snapCamera() {
@@ -825,9 +945,12 @@ class MissionScene {
     for (let x = off - panelW; x < VW + panelW; x += panelW) {
       ctx.fillStyle = P.wall; ctx.fillRect(Math.round(x) + 2, 0, panelW - 4, VH);
     }
-    const trimY = Math.round(10.2 * TS - cam.y);
-    ctx.fillStyle = P.trim; ctx.fillRect(0, trimY, VW, 3);
-    ctx.fillStyle = shade(P.wall2, -14); ctx.fillRect(0, trimY + 3, VW, VH);
+    const rowH = this.lvl.rowH * TS;
+    for (let r = Math.floor(cam.y / rowH); r * rowH < cam.y + VH; r++) {
+      const top = r * rowH - cam.y, trimY = Math.round(top + this.lvl.trimOff * TS);
+      ctx.fillStyle = P.trim; ctx.fillRect(0, trimY, VW, 3);
+      ctx.fillStyle = shade(P.wall2, -14); ctx.fillRect(0, trimY + 3, VW, Math.max(0, Math.round(top + rowH) - trimY - 3));
+    }
     if (L === 'back') {
       // 벽의 핏줄 / 낙서
       const r = new RNG(Math.floor(cam.x / 128) + 3);
@@ -910,7 +1033,7 @@ class MissionScene {
     // 상호작용 안내 (키캡 + 이름)
     if (this.prompt && !this.locked) {
       const o = this.prompt;
-      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함' }[o.type];
+      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문' }[o.type];
       const tx = Math.round(o.x + o.w / 2 - cam.x), ty = Math.round(o.y - 16 - cam.y + Math.sin(this.time * 0.15) * 1.5);
       const w = Gfx.measure(ctx, label, { small: true }) + 22;
       UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
@@ -1012,6 +1135,39 @@ class MissionScene {
         G.circle(ctx, x + o.w / 2, y + 28, 7, '#ff2a3a');
         break;
       }
+      case 'descend': {
+        // 아래로 이어지는 소용돌이 균열
+        const cx = x + o.w / 2, cy = y + o.h / 2;
+        ctx.globalAlpha = 0.35 + Math.sin(t * 0.06) * 0.1; G.circle(ctx, cx, cy, 22, '#5a1a8a'); ctx.globalAlpha = 1;
+        for (let i = 0; i < 18; i++) {
+          const a = t * 0.05 + i * 0.7, r = 4 + (i % 6) * 3;
+          ctx.fillStyle = i % 3 ? '#b86cff' : '#f4f0e6';
+          ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 1.4), 2, 2);
+        }
+        G.px(ctx, cx - 1, cy - 1, 3, 3, '#0b0b10');
+        if (this.deep) G.text(ctx, `깊이 ${this.deep.stage + 1}`, cx, y - 12, '#b86cff', { small: true, align: 'center' });
+        break;
+      }
+      case 'checkpoint': {
+        G.px(ctx, x + 6, y + 4, 3, o.h - 4, o.done ? '#6fd08c' : '#5a566a');
+        G.px(ctx, x + 2, y, 11, 5, o.done ? '#c8f0d0' : '#8a86a0');
+        if (o.done) { ctx.globalAlpha = 0.25 + Math.sin(t * 0.08) * 0.1; G.circle(ctx, x + 7, y + 3, 8, '#6fd08c'); ctx.globalAlpha = 1; }
+        else if (t % 40 < 20) { ctx.fillStyle = '#c8c4d8'; ctx.fillRect(x + 7, y - 3, 1, 1); }
+        if (o.done && this.cpUsed) G.text(ctx, '사용함', x + 7, y - 11, COL.dark, { small: true, align: 'center' });
+        break;
+      }
+      case 'gate': {
+        if (o.done) break;
+        for (const [cxT, cyT] of o.cells) {
+          const gx = cxT * TS - this.cam.x, gy = cyT * TS - this.cam.y;
+          G.px(ctx, Math.round(gx), Math.round(gy), TS, TS, '#1a1220');
+          for (let k = 2; k < TS; k += 5) G.px(ctx, Math.round(gx) + k, Math.round(gy), 2, TS, '#8a7a5a');
+        }
+        const [lx, ly] = o.cells[2];
+        const ix = Math.round(lx * TS - this.cam.x + 8), iy = Math.round(ly * TS - this.cam.y - 2);
+        G.px(ctx, ix - 4, iy, 9, 7, this.hasKey ? COL.yellow : '#c8a040'); G.px(ctx, ix - 2, iy - 4, 5, 4, '#0b0b10'); G.px(ctx, ix - 1, iy - 3, 3, 3, '#c8a040');
+        break;
+      }
     }
   }
   drawProgress(ctx, cx, y, f, col) {
@@ -1035,6 +1191,9 @@ class MissionScene {
       ctx.globalAlpha = 1;
       ctx.drawImage(SPR.icon[a.icon], x, y);
       if (k.t % 40 < 6) { ctx.fillStyle = '#fff'; ctx.fillRect(x + 11, y + 1, 1, 3); ctx.fillRect(x + 10, y + 2, 3, 1); }
+    } else if (k.type === 'key') {
+      ctx.globalAlpha = 0.35 + Math.sin(k.t * 0.1) * 0.15; Gfx.circle(ctx, x + 7, y + 7, 9, '#f2c230'); ctx.globalAlpha = 1;
+      ctx.drawImage(SPR.icon.key, x, y);
     } else if (k.type === 'cash') ctx.drawImage(SPR.icon.cash, x, y);
     else if (k.type === 'item') ctx.drawImage(SPR.icon.box, x, y);
     else if (k.type === 'sanorb') {
@@ -1136,6 +1295,45 @@ class MissionScene {
     }
   }
 
+  drawMinimap(ctx, jv) {
+    const M = this.gen.map, C = UI.C;
+    const cw = 9, ch = 6;
+    const mw = M.cols * (cw + 1) + 5, mh = M.rows * (ch + 1) + 5;
+    const x0 = VW - 6 - mw, y0 = 62;
+    UI.card(ctx, x0, y0, mw, mh, { fill: 'rgba(12,11,19,0.72)', border: C.line });
+    const roomOf = (o) => Math.floor((o.x + (o.w || 0) / 2) / (RW * TS)) + ',' + Math.floor((o.y + (o.h || 0) / 2) / (RH * TS));
+    const marks = {};
+    for (const o of this.interacts) {
+      if (o.done && o.type !== 'exit') continue;
+      const k = roomOf(o);
+      if (['clue', 'rift', 'cause', 'descend', 'core'].includes(o.type)) marks[k] = marks[k] || COL.cyan;
+      if (o.type === 'exit') marks[k] = this.objState.complete ? COL.green : marks[k] || '#3a6a4a';
+      if (o.type === 'gate') marks[k] = '#ff8a3a';
+    }
+    if (this.gen.arena && !this.objState.bossDone) { const k = Math.floor(this.gen.arena.x0 / (RW * TS)) + ',' + Math.floor(this.gen.arena.y0 / (RH * TS)); marks[k] = '#ff5a6a'; }
+    for (const k of this.pickups.filter((q) => q.type === 'key').map(roomOf)) if (this.visited.has(k)) marks[k] = COL.yellow;
+    const known = (r) => this.visited.has(r.gx + ',' + r.gy);
+    const nearKnown = (r) => known(r) || M.rooms.some((q) => known(q) && Math.abs(q.gx - r.gx) + Math.abs(q.gy - r.gy) === 1 &&
+      ((q.gx === r.gx + 1 && r.conns.R) || (q.gx === r.gx - 1 && r.conns.L) || (q.gy === r.gy + 1 && r.conns.D) || (q.gy === r.gy - 1 && r.conns.U)));
+    for (const r of M.rooms) {
+      const k = r.gx + ',' + r.gy;
+      const rx = x0 + 3 + r.gx * (cw + 1), ry = y0 + 3 + r.gy * (ch + 1);
+      const cur = this.curRoom && this.curRoom.k === k;
+      if (known(r)) {
+        ctx.fillStyle = cur ? (this.time % 30 < 20 ? C.accent : '#8a7a30') : '#46425e'; ctx.fillRect(rx, ry, cw, ch);
+        ctx.fillStyle = '#6e6a88';
+        if (r.conns.R) ctx.fillRect(rx + cw, ry + ch - 2, 1, 1);
+        if (r.conns.D) ctx.fillRect(rx + 4, ry + ch, 1, 1);
+      } else if (nearKnown(r) || marks[k]) {
+        ctx.fillStyle = '#2a2740'; ctx.fillRect(rx, ry, cw, 1); ctx.fillRect(rx, ry + ch - 1, cw, 1); ctx.fillRect(rx, ry, 1, ch); ctx.fillRect(rx + cw - 1, ry, 1, ch);
+      }
+      if (marks[k]) { ctx.fillStyle = marks[k]; ctx.fillRect(rx + 3, ry + 2, 3, 2); }
+    }
+    if (jv) {
+      for (let i = 0; i < jv * 30; i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(98,214,232,0.6)' : 'rgba(255,58,90,0.5)'; ctx.fillRect(x0 + rndi(1, mw - 3), y0 + rndi(1, mh - 3), rndi(1, 4), 1); }
+    }
+  }
+
   drawHUD(ctx) {
     const p = this.player, s = this.s, C = UI.C;
     // 모서리 그림자로 가독성 확보 (박스 없음)
@@ -1196,7 +1394,8 @@ class MissionScene {
     let otext = this.objText();
     if (jv && !truth) otext = J.objLie || glitchText(otext, jv * 0.5);
     ctx.fillStyle = ob.col; ctx.fillRect(VW - 6, 7, 2, 22);
-    Gfx.text(ctx, ob.name + ' · ' + THEMES[this.theme].short, VW - 11, 6, ob.col, { small: true, align: 'right' });
+    const obLabel = this.deep ? `심층 탐사 · 깊이 ${this.deep.stage}/${this.deep.stages}` : ob.name + ' · ' + THEMES[this.theme].short;
+    Gfx.text(ctx, obLabel, VW - 11, 6, this.deep ? '#b86cff' : ob.col, { small: true, align: 'right' });
     Gfx.text(ctx, otext, VW - 11, 17, this.objState.complete && !J.objLie ? COL.green : C.text, { align: 'right', bold: true });
     if (this.run.found.length) {
       const t = '× ' + this.run.found.length;
@@ -1204,6 +1403,8 @@ class MissionScene {
       ctx.drawImage(SPR.icon.frame, VW - 25 - tw, 33);
       Gfx.text(ctx, t, VW - 11, 35, COL.pink, { small: true, align: 'right' });
     }
+    // 미니맵 (휴대폰 앱 — 교란되면 깨진다)
+    if (this.gen.map) this.drawMinimap(ctx, jv && !truth ? jv : 0);
     // 신호 상태 표시 (이것만큼은 정직하다)
     if (jv || J.immune > 0) {
       const y = 47;
@@ -1254,7 +1455,8 @@ class MissionScene {
       g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.72)'); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.fillRect(0, 70, VW, 44);
       Gfx.text(ctx, THEMES[this.theme].name, VW / 2, 74, C.text, { align: 'center', bold: true });
-      Gfx.text(ctx, (OBJECTIVES[this.obj] ? OBJECTIVES[this.obj].desc : '청명의 최상층으로 향한다.'), VW / 2, 89, C.sub, { align: 'center', small: true });
+      const bdesc = this.deep ? `깊이 ${this.deep.stage} / ${this.deep.stages} — ` + (this.obj === 'descend' ? '더 깊은 균열을 찾아라.' : OBJECTIVES[this.obj].desc) : (OBJECTIVES[this.obj] ? OBJECTIVES[this.obj].desc : '청명의 최상층으로 향한다.');
+      Gfx.text(ctx, bdesc, VW / 2, 89, C.sub, { align: 'center', small: true });
       const stars = '★'.repeat(this.diff) + '☆'.repeat(5 - this.diff);
       Gfx.text(ctx, '위험도 ' + stars + ((this.gen.jamZones || []).length ? '  ·  전파 오염 구역 있음' : ''), VW / 2, 101, '#ff8a8a', { align: 'center', small: true });
       ctx.globalAlpha = 1;
@@ -1276,5 +1478,67 @@ class MissionScene {
   }
 }
 
+// ───── 심층 탐사: 균열 앞 휴식 / 계속 or 철수 ─────
+class DeepRest {
+  constructor(sc) {
+    this.sc = sc; this.sel = 0; this.t = 0; this.blockInput = 20;
+    this.covers = true; this.wantsDim = true;
+  }
+  payFor(cleared, full) { return Math.round(this.sc.job.pay * (0.35 + 0.3 * cleared + (full ? 0.3 : 0)) / 1000) * 1000; }
+  update() {
+    this.t++;
+    if (this.blockInput > 0) { this.blockInput--; return; }
+    if (Input.pressed('left') || Input.pressed('right') || Input.pressed('up') || Input.pressed('down')) { this.sel = 1 - this.sel; Sound.play('menu'); }
+    if (Input.pressed('confirm')) {
+      Sound.play('select');
+      Game.pop(this);
+      this.sc.locked = false;
+      if (this.sel === 0) this.sc.descendNext();
+      else this.sc.finish('extract');
+    }
+  }
+  draw(ctx) {
+    const sc = this.sc, C = UI.C, d = sc.deep, p = sc.player;
+    const x = 24, y = 14, w = VW - 48, h = VH - 40;
+    UI.card(ctx, x, y, w, h, { accent: '#b86cff' });
+    Gfx.text(ctx, '균열 앞', x + 12, y + 8, C.text, { bold: true });
+    Gfx.text(ctx, '잠시 숨을 고른다. 체력·정신력 +25%, 공포 -40', x + w - 12, y + 9, C.sub, { small: true, align: 'right' });
+    // 깊이 표시
+    const nx0 = x + 30, nw = w - 60;
+    for (let i = 1; i <= d.stages; i++) {
+      const cx = Math.round(nx0 + (nw * (i - 1)) / Math.max(1, d.stages - 1));
+      if (i < d.stages) { ctx.fillStyle = i < d.stage + 1 ? '#b86cff' : C.line2; ctx.fillRect(cx, y + 36, Math.round(nw / (d.stages - 1)), 2); }
+      const done = i <= d.stage, next = i === d.stage + 1;
+      UI.card(ctx, cx - 6, y + 31, 13, 13, { fill: done ? '#4a2a6a' : '#16141f', border: next ? (this.t % 30 < 15 ? '#ffffff' : '#b86cff') : done ? '#b86cff' : C.line2 });
+      Gfx.text(ctx, String(i), cx + 1, y + 32, done || next ? C.text : C.mute, { small: true, align: 'center' });
+    }
+    Gfx.text(ctx, i18Depth(d.stages), nx0 + nw, y + 48, C.mute, { small: true, align: 'right' });
+    // 현재 상태
+    const sy = y + 62;
+    Gfx.text(ctx, '챙긴 것', x + 14, sy, C.sub, { small: true });
+    let ix = x + 60;
+    for (const id of sc.run.found.slice(0, 12)) { ctx.drawImage(SPR.icon[ARTIFACTS[id].icon], ix, sy - 2); ix += 15; }
+    if (!sc.run.found.length) Gfx.text(ctx, '아직 없음', ix, sy, C.mute, { small: true });
+    Gfx.text(ctx, '주운 돈 ' + won(sc.run.cash), x + w - 14, sy, '#9ae89a', { small: true, align: 'right' });
+    ctx.drawImage(UI.icon('hp'), x + 14, sy + 16); UI.bar(ctx, x + 27, sy + 19, 90, 3, p.hp / p.maxHp, '#e8464e');
+    ctx.drawImage(UI.icon('san'), x + 130, sy + 16); UI.bar(ctx, x + 143, sy + 19, 90, 3, p.san / p.maxSan, '#8f7cff');
+    // 선택지
+    const nextFinal = d.stage + 1 === d.stages;
+    const opts = [
+      { t: `더 깊이 — 깊이 ${d.stage + 1}`, d: nextFinal ? `마지막 층: ${OBJECTIVES[sc.job.finalObj].name}. 끝까지 가면 ${won(this.payFor(d.stages, true))}` : `위험도↑ 공포↑ 교란↑ · 보수 배율 상승`, c: '#b86cff' },
+      { t: '챙겨서 철수', d: `보수 ${won(this.payFor(d.stage, false))} · 아티팩트 ${sc.run.found.length}개 확보`, c: COL.green },
+    ];
+    opts.forEach((o, i) => {
+      const ox = x + 12 + i * ((w - 24) / 2 + 2), ow = (w - 24) / 2 - 2, oy = y + h - 56, sel = this.sel === i;
+      UI.card(ctx, ox, oy, ow, 46, { fill: sel ? 'rgba(40,36,60,0.96)' : C.bg, border: sel ? o.c : C.line, accent: sel ? o.c : null });
+      Gfx.text(ctx, o.t, ox + 10, oy + 6, sel ? C.text : C.sub, { bold: sel });
+      Gfx.para(ctx, o.d, ox + 10, oy + 21, ow - 18, sel ? o.c : C.mute, { small: true, maxLines: 2, lh: 11 });
+    });
+    Gfx.text(ctx, '쓰러지면 챙긴 것을 모두 잃는다.', x + 14, y + h - 70, '#ff8a8a', { small: true });
+    UI.hints(ctx, x + w, y + h + 4, [['←→', '선택'], ['Z', '결정']], 'right');
+  }
+}
+function i18Depth(n) { return `총 ${n}층`; }
+
 const STATUS_HELP_TEXT = '공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)\n\n신호 불량(통신 교란): 알림 떼·전파 오염 구역·일부 보스가 일으킨다.\nHUD 수치·상태 아이콘·목표·알림이 거짓이 된다. 표면으로 나가면 회복.\n전파 차단 호일, 차폐 폰케이스, 의심 갈래 "간파"로 대응.';
-const CONTROLS_TEXT = '← →  이동        Z / Space  점프 (↓+점프: 발판 내려가기)\nX  공격            C  뒤집기 (표면 ↔ 뒷면)\n↑  조사 / 상호작용   V  소모품 사용   Q 또는 ↓+V  소모품 변경\nShift  대시 (능력 획득 시, 방향키 두 번도 가능)\nEsc  일시정지\n\n메뉴: 방향키 이동, Z/Enter 확인, X/Esc 취소\n허브: ↑ 건물 들어가기, V 휴대폰';
+const CONTROLS_TEXT = '← →  이동        Z / Space  점프 (↓ 길게: 발판 아래로)\nX  공격            C  뒤집기 (표면 ↔ 뒷면)\n↑  조사 / 상호작용   V  소모품 사용   Q 또는 ↓+V  소모품 변경\nShift  대시 (능력 획득 시, 방향키 두 번도 가능)\nEsc  일시정지\n\n메뉴: 방향키 이동, Z/Enter 확인, X/Esc 취소\n허브: ↑ 건물 들어가기, V 휴대폰';

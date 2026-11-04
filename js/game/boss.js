@@ -21,6 +21,7 @@ class Boss {
     this.anim = 0;
     this.onGround = false;
     this.hazards = [];   // 경고선/광선/열차
+    this.ceilY = arena.ceilY != null ? arena.ceilY : CEIL * TS;
     this.spr = SPR.boss[key];
     this.sprL = this.spr.map((f) => Gfx.flipH(f));
   }
@@ -81,7 +82,7 @@ class Boss {
       moveBody(this, sc.lvl, 'back');
     }
     this.x = clamp(this.x, this.arena.x0 + 2, this.arena.x1 - this.w - 2);
-    this.y = clamp(this.y, (CEIL + 0.5) * TS, this.arena.floorY - this.h);
+    this.y = clamp(this.y, this.ceilY + 8, this.arena.floorY - this.h);
     // 접촉
     if (p.layer === 'back' && this.alpha > 0.5 && overlap(this.hitbox(), p) && p.hurt(this.dmg, 6, this.cx)) sc.applyHitEffect('terror');
   }
@@ -168,7 +169,7 @@ class Boss {
           Sound.play('warn');
         }
         if (pt === 50) {
-          for (const x of this.pd.xs) this.shoot(x, (CEIL + 0.5) * TS, 0, 4.2, { r: 4, kind: 'drop', life: 120 });
+          for (const x of this.pd.xs) this.shoot(x, this.ceilY + 8, 0, 4.2, { r: 4, kind: 'drop', life: 120 });
         }
         return pt > 90;
       }
@@ -208,7 +209,7 @@ class Boss {
       }
       case 'beam': {
         if (pt === 1) {
-          this.pd.y = clamp(p.cy, (CEIL + 1) * TS, this.arena.floorY - 8);
+          this.pd.y = clamp(p.cy, this.ceilY + 16, this.arena.floorY - 8);
           this.hazards.push({ type: 'beamwarn', y: this.pd.y, t: ph2 ? 38 : 52 });
           Sound.play('warn');
         }
@@ -288,7 +289,7 @@ class Boss {
         ctx.fillStyle = h.t % 8 < 4 ? this.def.color : 'rgba(255,255,255,0.5)';
         const x = Math.round(h.x - cam.x);
         ctx.fillRect(x - 4, Math.round(a.floorY - cam.y) - 2, 8, 2);
-        ctx.globalAlpha = 0.25; ctx.fillRect(x - 1, Math.round((CEIL) * TS - cam.y), 2, a.floorY - CEIL * TS); ctx.globalAlpha = 1;
+        ctx.globalAlpha = 0.25; ctx.fillRect(x - 1, Math.round(this.ceilY - cam.y), 2, a.floorY - this.ceilY); ctx.globalAlpha = 1;
       } else if (h.type === 'beamwarn') {
         ctx.fillStyle = h.t % 6 < 3 ? 'rgba(255,60,80,0.7)' : 'rgba(255,255,255,0.4)';
         ctx.fillRect(Math.round(a.x0 - cam.x), Math.round(h.y - cam.y), a.x1 - a.x0, 1);

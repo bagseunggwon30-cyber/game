@@ -22,6 +22,7 @@ class Player {
     this.dead = false;
     this.frozen = 0;
     this.fear = 0;                 // 공포 수치 0~100
+    this.downHold = 0;
     this.st = new StatusSet();     // 버프 / 디버프
     this.jitT = 40; this.jitDir = 0; this.jitLeft = 0;
   }
@@ -86,6 +87,10 @@ class Player {
       }
     }
     if (!Input.down('jump') && this.vy < -2.2) this.vy = -2.2;
+    // ↓ 길게: 발판 아래로 내려가기
+    if (ctrl && Input.down('down') && this.onGround && this.standingOnPlatform()) {
+      if (++this.downHold > 9) { this.dropT = 12; this.y += 1; this.downHold = 0; }
+    } else this.downHold = 0;
 
     if (this.dashT <= 0) {
       this.vy = Math.min(MAXFALL, this.vy + GRAV);
@@ -313,7 +318,7 @@ class Enemy {
           this.vy = approach(this.vy, Math.sin(this.t * 0.03) * this.spd * 0.6, 0.03);
         }
         this.x += this.vx; this.y += this.vy;
-        this.y = clamp(this.y, CEIL * TS, (LH - 2) * TS);
+        this.y = clamp(this.y, CEIL * TS, (sc.lvl.H - 2) * TS);
         this.facing = sign(this.vx) || this.facing;
         break;
       }
@@ -360,7 +365,7 @@ class Enemy {
           this.vx = Math.cos(this.t * 0.03) * 0.5; this.vy = Math.sin(this.t * 0.05) * 0.4;
         }
         this.x += this.vx; this.y += this.vy;
-        this.y = clamp(this.y, CEIL * TS, (LH - 2) * TS);
+        this.y = clamp(this.y, CEIL * TS, (sc.lvl.H - 2) * TS);
         this.facing = sign(this.vx) || this.facing;
         break;
       }
