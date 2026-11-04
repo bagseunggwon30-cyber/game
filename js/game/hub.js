@@ -217,39 +217,51 @@ class HubScene {
       for (let i = 0; i < 3; i++) { const y = rndi(0, VH); ctx.drawImage(Gfx.buf, 0, y, VW, 6, rndi(-10, 10), y, VW, 6); }
     }
     // 안내
-    if (this.prompt) {
+    if (this.prompt && !Game.modals.length) {
       const z = this.prompt;
-      const tx = z.x + z.w / 2 - cam, ty = 118 + Math.sin(this.time * 0.12) * 1.5;
-      const label = '↑ ' + z.label;
-      const w = Gfx.measure(ctx, label, { small: true }) + 16;
-      Gfx.panel(ctx, tx - w / 2, ty - 2, w, 14, { edge: COL.yellow, inner: false });
-      Gfx.text(ctx, label, tx, ty, COL.white, { small: true, align: 'center' });
+      const tx = Math.round(z.x + z.w / 2 - cam), ty = Math.round(118 + Math.sin(this.time * 0.12) * 1.5);
+      const w = Gfx.measure(ctx, z.label, { small: true }) + 22;
+      UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
+      UI.keycap(ctx, tx - w / 2 + 3, ty, '↑');
+      Gfx.text(ctx, z.label, tx - w / 2 + 17, ty, UI.C.text, { small: true, shadow: false });
     }
     this.drawHUD(ctx);
   }
 
   drawHUD(ctx) {
-    const s = this.s;
-    Gfx.panel(ctx, 4, 4, 166, 40, { fill: 'rgba(10,9,16,0.82)', inner: false });
-    Gfx.text(ctx, `DAY ${s.day} · ${s.timeOfDay === 'night' ? '밤' : '낮'}`, 10, 7, COL.yellow, { bold: true });
-    Gfx.text(ctx, won(s.money), 164, 8, '#9ae89a', { align: 'right' });
+    const s = this.s, C = UI.C;
+    const top = ctx.createLinearGradient(0, 0, 0, 62);
+    top.addColorStop(0, 'rgba(8,7,14,0.78)'); top.addColorStop(1, 'rgba(8,7,14,0)');
+    ctx.fillStyle = top; ctx.fillRect(0, 0, VW, 62);
+    // 좌상단: 날짜 / 돈 / 월세
+    const night = s.timeOfDay === 'night';
+    Gfx.text(ctx, `DAY ${s.day}`, 8, 6, C.text, { bold: true });
+    UI.pill(ctx, 14 + Gfx.measure(ctx, `DAY ${s.day}`, { bold: true }), 7, night ? '밤' : '낮', night ? '#8a9aff' : '#f2c230');
+    Gfx.text(ctx, won(s.money), 8, 21, '#9ae89a');
     const left = s.rentDue - s.day;
-    Gfx.text(ctx, `월세 ${won(RENT)} · ${left <= 0 ? '오늘' : left + '일 후'}`, 10, 22, left <= 1 ? '#ff8a8a' : COL.dim, { small: true });
-    if (s.debt > 0) Gfx.text(ctx, '빚 ' + won(s.debt), 164, 22, '#ff6a6a', { small: true, align: 'right' });
-    Gfx.text(ctx, s.workedToday ? '오늘 근무 완료 — 옥탑방에서 자자' : '오늘의 알바: 정류장 / 휴대폰(V)', 10, 32, s.workedToday ? COL.green : '#c8c4d8', { small: true });
-    const rx = VW - 132;
-    Gfx.panel(ctx, rx, 4, 128, 40, { fill: 'rgba(10,9,16,0.82)', inner: false });
+    Gfx.text(ctx, `월세 ${left <= 0 ? '오늘' : 'D-' + left}`, 8, 35, left <= 1 ? '#ff8a8a' : C.sub, { small: true });
+    if (s.debt > 0) Gfx.text(ctx, '빚 ' + won(s.debt), 62, 35, '#ff6a6a', { small: true });
+    // 우상단: 등급 / 의심 / 오염
     const ri = rankIndex(s), nr = RANKS[ri + 1];
-    Gfx.text(ctx, RANKS[ri].name, rx + 6, 7, COL.cyan, { small: true });
-    Gfx.text(ctx, '신뢰 ' + s.trust + (nr ? '/' + nr.need : ''), rx + 122, 7, COL.dim, { small: true, align: 'right' });
-    Gfx.text(ctx, '의심', rx + 6, 19, COL.orange, { small: true }); Gfx.bar(ctx, rx + 32, 22, 88, 3, s.suspicion / 100, COL.orange);
-    Gfx.text(ctx, '오염', rx + 6, 30, COL.pink, { small: true }); Gfx.bar(ctx, rx + 32, 33, 88, 3, s.contamination / 100, COL.pink);
+    const rx = VW - 104;
+    Gfx.text(ctx, RANKS[ri].name, VW - 8, 6, COL.cyan, { align: 'right', bold: true });
+    UI.bar(ctx, rx, 21, 96, 2, nr ? (s.trust - RANKS[ri].need) / (nr.need - RANKS[ri].need) : 1, COL.cyan);
+    Gfx.text(ctx, nr ? `신뢰 ${s.trust}/${nr.need}` : `신뢰 ${s.trust}`, VW - 8, 24, C.sub, { small: true, align: 'right' });
+    Gfx.text(ctx, '의심', rx, 36, COL.orange, { small: true }); UI.bar(ctx, rx + 24, 41, 72, 2, s.suspicion / 100, COL.orange);
+    Gfx.text(ctx, '오염', rx, 46, COL.pink, { small: true }); UI.bar(ctx, rx + 24, 51, 72, 2, s.contamination / 100, COL.pink);
+    if (Game.modals.length) return;
+    // 하단: 오늘 할 일 / 알림 / 조작
+    const bot = ctx.createLinearGradient(0, VH - 40, 0, VH);
+    bot.addColorStop(0, 'rgba(8,7,14,0)'); bot.addColorStop(1, 'rgba(8,7,14,0.6)');
+    ctx.fillStyle = bot; ctx.fillRect(0, VH - 40, VW, 40);
+    const todo = s.workedToday ? '오늘 근무 끝 — 옥탑방에서 쉬자' : '오늘의 알바를 고르자 (정류장 · 휴대폰)';
+    ctx.fillStyle = s.workedToday ? COL.green : C.accent; ctx.fillRect(9, VH - 12, 3, 3);
+    Gfx.text(ctx, todo, 16, VH - 15, C.text, { small: true });
+    let nx = 8;
+    if (s.statPoints > 0) nx += UI.pill(ctx, nx, VH - 30, '승급 포인트 ' + s.statPoints, COL.green, { dot: true }) + 4;
+    if ((s.sp || 0) > 0) UI.pill(ctx, nx, VH - 30, '마음 조각 ' + s.sp, '#a99cff', { dot: true });
     const un = unreadCount(s);
-    Gfx.text(ctx, 'V 휴대폰' + (un ? ` (${un})` : ''), VW - 8, VH - 14, un ? COL.yellow : COL.dim, { small: true, align: 'right' });
-    const notes = [];
-    if (s.statPoints > 0) notes.push(['★ 승급 포인트 ' + s.statPoints + ' (청명관리)', COL.green]);
-    if ((s.sp || 0) > 0) notes.push(['✦ 마음 조각 ' + s.sp + ' (휴대폰 · 마음 지도)', '#a99cff']);
-    notes.forEach(([t, c], i) => Gfx.text(ctx, t, 8, VH - 14 - i * 12, c, { small: true }));
+    UI.hints(ctx, VW - 8, VH - 15, [['V', un ? `휴대폰 (${un})` : '휴대폰']], 'right');
   }
 
   // ───────────── 메뉴들 ─────────────
@@ -257,17 +269,26 @@ class HubScene {
 
   openPhone() {
     const s = this.s;
+    const night = s.timeOfDay === 'night';
+    Game.push(new PhoneHome([
+      { name: '틈새', icon: 'jobs', desc: '오늘 지원할 수 있는 알바 목록.', open: () => this.openJobs() },
+      { name: '메시지', icon: 'msg', badge: unreadCount(s) || null, desc: '받은 메시지.', open: () => this.openMessages() },
+      { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/10 — 현장에서 모은 문서.`, open: () => this.openTruths() },
+      { name: '마음 지도', icon: 'mind', badge: s.sp || null, desc: '스킬트리. 마음 조각(SP)으로 노드를 해금한다.', open: () => Game.push(new SkillTreeView(s)) },
+      { name: '내 상태', icon: 'status', desc: '능력치 · 능력 · 장비.', open: () => Game.push(new StatusView(s)) },
+      { name: '설정', icon: 'settings', desc: '소리, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
+    ], night ? '23:40' : '09:12', `DAY ${s.day} · ${night ? '밤' : '낮'}`));
+  }
+
+  openSettings() {
+    const s = this.s;
     Game.push(new Menu({
-      title: '휴대폰', w: 200, phone: true, phoneTime: this.phoneTime(), desc: true,
+      title: '설정', phone: true, phoneTime: this.phoneTime(), desc: true, appCol: '#9a98b0',
       refresh: () => [
-        { label: '틈새 — 알바 목록', desc: '오늘 지원할 수 있는 알바를 본다.', onSelect: () => this.openJobs() },
-        { label: '메시지', badge: unreadCount(s) || null, desc: '받은 메시지를 확인한다.', onSelect: () => this.openMessages() },
-        { label: `메모 — 진실 조각 ${s.truths.length}/10`, desc: '현장에서 모은 문서들. 청명의 이면.', onSelect: () => this.openTruths() },
-        { label: '마음 지도 — 스킬트리', badge: s.sp || null, desc: '마음 조각(SP)으로 공포·분노·망각·의심·희망 다섯 갈래의 노드를 해금한다.', onSelect: () => Game.push(new SkillTreeView(s)) },
-        { label: '내 상태', desc: '능력치, 능력, 장비를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
-        { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
         { label: Sound.muted ? '소리 켜기' : '소리 끄기', desc: '사운드를 전환한다.', onSelect: () => Sound.toggleMute() },
-        { label: '저장하고 타이틀로', desc: '진행 상황을 저장하고 타이틀 화면으로 돌아간다.', onSelect: (m) => { m.close(); saveGame(s); Game.fadeTo(() => Game.setScene(new TitleScene())); } },
+        { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
+        { label: '상태 효과 안내', desc: '공포·패닉·희망 등 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
+        { label: '저장하고 타이틀로', desc: '진행 상황을 저장하고 타이틀 화면으로 돌아간다.', onSelect: () => { Game.modals = []; saveGame(s); Game.fadeTo(() => Game.setScene(new TitleScene())); } },
       ],
     }));
   }
@@ -276,18 +297,20 @@ class HubScene {
     const s = this.s;
     const jobs = currentJobs(s);
     Game.push(new Menu({
-      title: '틈새 · 오늘의 알바', titleRight: 'DAY ' + s.day, w: 300, desc: true, phone: true, phoneTime: this.phoneTime(), maxVis: 6,
+      title: '틈새 · 오늘의 알바', titleRight: 'DAY ' + s.day, desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#f2c230',
       items: jobs.map((j) => {
         const meme = MEMES[THEMES[j.theme].meme];
         const stars = '★'.repeat(j.diff) + '☆'.repeat(5 - j.diff);
         const locked = j.locked;
         return {
-          label: (j.story ? '◆ ' : '') + j.title.slice(0, 19) + (j.title.length > 19 ? '…' : ''),
+          label: (j.story ? '◆ ' : '') + j.title.replace(/^\[.*?\] /, ''),
+          sub: `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
+          subCol: (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
           right: j.pay ? won(j.pay) : '???',
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
-            `${THEMES[j.theme].name} · ${(OBJECTIVES[j.obj] || { name: '최종' }).name} · 위험도 ${stars}\n괴담: ${meme.name} — ${meme.desc}`,
+            `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
           onSelect: () => this.confirmJob(j),
         };
       }),
@@ -307,12 +330,12 @@ class HubScene {
   openMessages() {
     const s = this.s;
     Game.push(new Menu({
-      title: '메시지', w: 280, desc: true, phone: true, phoneTime: this.phoneTime(), maxVis: 7,
+      title: '메시지', titleRight: unreadCount(s) ? `안 읽음 ${unreadCount(s)}` : '', phone: true, phoneTime: this.phoneTime(), appCol: '#3ac87a',
       refresh: () => (s.messages.length ? s.messages.map((m) => ({
-        label: (m.read ? '  ' : '● ') + SPEAKERS[m.from].name,
+        label: (m.read ? '' : '● ') + SPEAKERS[m.from].name,
+        sub: m.text,
         right: 'D' + m.day,
-        col: m.read ? COL.dim : SPEAKERS[m.from].col,
-        desc: m.text,
+        col: m.read ? '#a29eb8' : SPEAKERS[m.from].col,
         onSelect: () => { m.read = true; Game.push(new TextView(SPEAKERS[m.from].name, m.text, null, { titleCol: SPEAKERS[m.from].col })); },
       })) : [{ label: '(메시지 없음)', disabled: true }]),
     }));
@@ -322,7 +345,7 @@ class HubScene {
   openTruths() {
     const s = this.s;
     Game.push(new Menu({
-      title: '메모 — 진실 조각', titleRight: s.truths.length + '/10', w: 270, desc: true, phone: true, phoneTime: this.phoneTime(), maxVis: 7,
+      title: '메모 · 진실 조각', titleRight: s.truths.length + '/10', desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#e8e0c8',
       items: TRUTH_ORDER.map((id, i) => {
         const has = s.truths.includes(id);
         return {

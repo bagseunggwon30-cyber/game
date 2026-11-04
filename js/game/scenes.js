@@ -53,7 +53,7 @@ class TitleScene {
       const all = ['hire', 'expose', 'merge', 'quit', 'dissolve'];
       Game.push(new TextView('엔딩 기록 ' + seen.length + '/' + all.length, all.map((k) => (seen.includes(k) ? '◆ ' + ENDINGS[k].name : '◇ ???')).join('\n')));
     } });
-    this.menu = new Menu({ items, w: 150, y: 122, dim: false, onCancel: false });
+    this.menu = new Menu({ items, y: 124, dim: false, onCancel: false, plain: true });
     Game.push(this.menu);
   }
   newGame() {
@@ -249,56 +249,74 @@ class ResultScene {
     }
   }
   draw(ctx) {
-    const s = this.s;
-    ctx.fillStyle = '#0c0b14'; ctx.fillRect(0, 0, VW, VH);
-    for (let y = 0; y < VH; y += 4) { ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0, y, VW, 1); }
+    const s = this.s, C = UI.C;
+    // 배경: 어두운 그라데이션 + 도시 실루엣
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
+    g.addColorStop(0, '#0a0912'); g.addColorStop(1, '#151229');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+    const r = new RNG(5);
+    for (let x = 0; x < VW; x += r.int(14, 30)) { const h = r.int(16, 50); ctx.fillStyle = '#0f0d1c'; ctx.fillRect(x, VH - h, r.int(12, 26), h); }
     const title = { success: '퇴근 완료', retreat: '현장 철수', fail: '임무 실패' }[this.result];
     const col = { success: COL.green, retreat: COL.orange, fail: COL.red }[this.result];
-    Gfx.text(ctx, title, VW / 2, 12, col, { align: 'center', bold: true });
-    Gfx.text(ctx, this.job.title, VW / 2, 28, COL.dim, { align: 'center', small: true });
+    if (!this.bigTitle) this.bigTitle = Gfx.bigText(title, col, 2);
+    ctx.drawImage(this.bigTitle, Math.round((VW - this.bigTitle.width) / 2), 6);
+    Gfx.text(ctx, Gfx.fit(ctx, this.job.title, VW - 40, { small: true }), VW / 2, 38, C.sub, { align: 'center', small: true });
+    const cx = 66, cw = VW - 132;
     if (this.step === 'head') {
-      const r = this.run;
+      const rr = this.run;
       const lines = [
-        ['소요 시간', `${Math.floor(r.time / 3600)}분 ${Math.floor(r.time / 60) % 60}초`],
-        ['쓰러뜨린 존재', r.kills + ''],
-        ['받은 피해', Math.round(r.damage) + ''],
-        ['발견한 아티팩트', r.found.length + '개'],
-        ['주운 돈', won(r.cash)],
+        ['소요 시간', `${Math.floor(rr.time / 3600)}분 ${Math.floor(rr.time / 60) % 60}초`],
+        ['쓰러뜨린 존재', rr.kills + ''],
+        ['받은 피해', Math.round(rr.damage) + ''],
+        ['발견한 아티팩트', rr.found.length + '개'],
+        ['주운 돈', won(rr.cash)],
       ];
-      Gfx.panel(ctx, 80, 50, VW - 160, 100);
-      lines.forEach(([k, v], i) => { Gfx.text(ctx, k, 96, 60 + i * 17, '#c8c4d8'); Gfx.text(ctx, v, VW - 96, 60 + i * 17, COL.white, { align: 'right' }); });
-      if (this.result === 'fail' && r.found.length) Gfx.text(ctx, '쓰러지면서 아티팩트를 모두 잃어버렸다...', VW / 2, 158, '#ff8a8a', { align: 'center', small: true });
-      if (this.t > 20 && Math.floor(this.t / 20) % 2 === 0) Gfx.text(ctx, 'Z 계속', VW / 2, VH - 20, COL.yellow, { align: 'center', small: true });
+      UI.card(ctx, cx, 54, cw, 96, { accent: col });
+      lines.forEach(([k, v], i) => {
+        const y = 64 + i * 16;
+        Gfx.text(ctx, k, cx + 14, y, C.sub);
+        Gfx.text(ctx, v, cx + cw - 14, y, C.text, { align: 'right' });
+        if (i < lines.length - 1) UI.divider(ctx, cx + 12, y + 14, cw - 24, 'rgba(255,255,255,0.05)');
+      });
+      if (this.result === 'fail' && rr.found.length) Gfx.text(ctx, '쓰러지면서 아티팩트를 모두 잃어버렸다...', VW / 2, 158, '#ff8a8a', { align: 'center', small: true });
+      if (this.t > 20) UI.hints(ctx, VW / 2, VH - 18, [['Z', '계속']], 'center');
     } else if (this.step === 'art') {
       const id = this.arts[this.ai];
       const a = ARTIFACTS[id], R = RARITY[a.rarity];
-      Gfx.text(ctx, `아티팩트 처리 ${this.ai + 1}/${this.arts.length}`, VW / 2, 44, COL.yellow, { align: 'center', small: true });
-      Gfx.panel(ctx, 30, 58, VW - 60, 96, { edge: R.col });
-      ctx.globalAlpha = 0.3 + Math.sin(this.t * 0.08) * 0.1; Gfx.circle(ctx, 70, 98, 26, R.col); ctx.globalAlpha = 1;
+      // 진행 점
+      for (let i = 0; i < this.arts.length; i++) { ctx.fillStyle = i < this.ai ? C.sub : i === this.ai ? C.accent : C.line2; ctx.fillRect(VW / 2 - this.arts.length * 4 + i * 8, 50, 5, 2); }
+      UI.card(ctx, 24, 58, VW - 48, 94, { accent: R.col });
+      ctx.globalAlpha = 0.22 + Math.sin(this.t * 0.08) * 0.08; Gfx.circle(ctx, 62, 102, 26, R.col); ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(SPR.icon[a.icon], 49, 77, 42, 42);
-      Gfx.text(ctx, a.name, 108, 66, R.col, { bold: true });
-      Gfx.text(ctx, `[${R.name}] · ${MEMES[a.from].name}`, 108, 81, COL.dim, { small: true });
-      Gfx.para(ctx, artifactDesc(id).replace(/^\[.*?\] /, ''), 108, 95, VW - 150, '#d8d4e8', { small: true, maxLines: 5 });
+      ctx.drawImage(SPR.icon[a.icon], 41, 81, 42, 42);
+      Gfx.text(ctx, a.name, 100, 66, C.text, { bold: true });
+      UI.pill(ctx, 100, 81, R.name, R.col);
+      Gfx.text(ctx, MEMES[a.from].name, 106 + Gfx.measure(ctx, R.name, { small: true }) + 8, 82, C.mute, { small: true });
+      Gfx.para(ctx, artifactDesc(id).replace(/^\[.*?\] /, ''), 100, 97, VW - 136, '#c8c4d8', { small: true, maxLines: 4 });
       const money = Math.round(R.submit * (1 + 0.02 * s.stats.luk) / 1000) * 1000;
       const opts = [
-        { t: '제출한다', d: `${won(money)} · 신뢰 +${R.trust}`, c: '#c8d0e0' },
-        { t: '몰래 챙긴다', d: `의심도 +${Math.round(R.sus * (1 - skillMods(s).sus))} (현재 ${s.suspicion})`, c: COL.orange },
+        { t: '제출한다', d: `${won(money)} · 신뢰 +${R.trust}`, c: '#c8d0e0', ac: '#c8d0e0' },
+        { t: '몰래 챙긴다', d: `의심도 +${Math.round(R.sus * (1 - skillMods(s).sus))}  (현재 ${s.suspicion})`, c: COL.orange, ac: COL.orange },
       ];
       opts.forEach((o, i) => {
-        const x = 40 + i * 156, y = 162, sel = this.choice === i;
-        Gfx.panel(ctx, x, y, 148, 34, { edge: sel ? COL.yellow : '#5a566a', fill: sel ? 'rgba(242,194,48,0.12)' : COL.panel });
-        Gfx.text(ctx, (sel ? '▶ ' : '  ') + o.t, x + 8, y + 5, sel ? COL.white : COL.dim, { bold: sel });
-        Gfx.text(ctx, o.d, x + 10, y + 20, o.c, { small: true });
+        const x = 24 + i * ((VW - 48) / 2 + 2), w = (VW - 48) / 2 - 2, y = 158, sel = this.choice === i;
+        UI.card(ctx, x, y, w, 34, { fill: sel ? 'rgba(40,36,60,0.96)' : C.bg, border: sel ? o.ac : C.line, accent: sel ? o.ac : null });
+        Gfx.text(ctx, o.t, x + 12, y + 6, sel ? C.text : C.sub, { bold: sel });
+        Gfx.text(ctx, o.d, x + 12, y + 21, sel ? o.c : C.mute, { small: true });
       });
-      Gfx.text(ctx, '◀ ▶ 선택   Z 결정', VW / 2, VH - 12, COL.dim, { align: 'center', small: true });
+      UI.hints(ctx, VW / 2, VH - 14, [['←→', '선택'], ['Z', '결정']], 'center');
     } else {
-      Gfx.panel(ctx, 40, 44, VW - 80, 140);
+      UI.card(ctx, 40, 50, VW - 80, 136, { accent: col });
       const list = this.log.slice(-9);
-      list.forEach(([k, v, c], i) => { Gfx.text(ctx, k, 54, 52 + i * 14, '#c8c4d8', { small: true }); Gfx.text(ctx, v, VW - 54, 52 + i * 14, c || COL.white, { small: true, align: 'right' }); });
-      Gfx.text(ctx, `소지금 ${won(s.money)}${s.debt ? ' · 빚 ' + won(s.debt) : ''}`, 54, 190, '#9ae89a', { small: true });
-      Gfx.text(ctx, `신뢰 ${s.trust} · 의심 ${s.suspicion} · 오염 ${Math.round(s.contamination)}`, VW - 54, 190, COL.dim, { small: true, align: 'right' });
-      if (this.t > 20 && Math.floor(this.t / 20) % 2 === 0) Gfx.text(ctx, 'Z 퇴근하기', VW / 2, VH - 14, COL.yellow, { align: 'center', small: true });
+      list.forEach(([k, v, c], i) => {
+        const y = 58 + i * 13;
+        Gfx.text(ctx, Gfx.fit(ctx, k, 150, { small: true }), 52, y, C.sub, { small: true });
+        Gfx.text(ctx, v, VW - 52, y, c || C.text, { small: true, align: 'right' });
+      });
+      UI.divider(ctx, 48, 175, VW - 96);
+      Gfx.text(ctx, `${won(s.money)}${s.debt ? '  (빚 ' + won(s.debt) + ')' : ''}`, 52, 176, '#9ae89a', { small: true });
+      Gfx.text(ctx, `신뢰 ${s.trust} · 의심 ${s.suspicion} · 오염 ${Math.round(s.contamination)}`, VW - 52, 176, C.sub, { small: true, align: 'right' });
+      if (this.t > 20) UI.hints(ctx, VW / 2, VH - 18, [['Z', '퇴근하기']], 'center');
     }
   }
 }

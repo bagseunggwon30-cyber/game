@@ -63,6 +63,7 @@ class SkillTreeView {
     this.t = 0;
     this.blockInput = 6;
     this.flash = {};
+    this.covers = true;
     this.edges = [];
     for (const nd of SKILL_NODES) for (const r of nd.req) this.edges.push([r, nd.id]);
   }
@@ -174,7 +175,7 @@ class SkillTreeView {
       ctx.fillRect(Math.round(cx + sx * cr), Math.round(cy + sy * cr - (sy > 0 ? 3 : 0)), 1, 4);
     }
     // 상단 바
-    Gfx.panel(ctx, 4, 4, 150, 30, { fill: 'rgba(10,9,16,0.9)', inner: false });
+    UI.card(ctx, 4, 4, 150, 30, { accent: '#a99cff' });
     Gfx.text(ctx, '마음 지도', 10, 7, COL.yellow, { bold: true });
     Gfx.text(ctx, `마음 조각 SP ${s.sp || 0}`, 10, 21, (s.sp || 0) > 0 ? COL.green : COL.dim, { small: true });
     Gfx.text(ctx, `해금 ${s.skills.length - 1}/${SKILL_NODES.length - 1}`, 148, 21, COL.dim, { small: true, align: 'right' });
@@ -191,16 +192,16 @@ class SkillTreeView {
       lx -= 6;
     }
     // 정보창
-    const dx = 6, dh = 52, dy = VH - dh - 4, dw = VW - 12;
+    const dx = 6, dh = 60, dy = VH - dh - 4, dw = VW - 12;
     const st = this.nodeState(cn.id);
     const C = this.colorsOf(cn);
-    Gfx.panel(ctx, dx, dy, dw, dh, { edge: st === 'lock' ? '#5a566a' : C.col });
+    UI.card(ctx, dx, dy, dw, dh, { border: UI.C.line, accent: st === 'lock' ? UI.C.line2 : C.col });
     const bname = cn.branch ? (cn.branch2 ? `${BRANCH_BY_ID[cn.branch].name}+${BRANCH_BY_ID[cn.branch2].name}` : BRANCH_BY_ID[cn.branch].name) : '중심';
     Gfx.text(ctx, cn.name, dx + 8, dy + 5, C.col, { bold: true });
     Gfx.text(ctx, `· ${bname}${cn.kind === 'key' ? ' 핵심' : cn.kind === 'hybrid' ? ' 혼합' : ''}`, dx + 12 + Gfx.measure(ctx, cn.name, { bold: true }), dy + 6, COL.dim, { small: true });
     const status = st === 'own' ? '해금됨' : st === 'avail' ? `해금 가능 · 비용 ${cn.cost} SP  (Z)` : '잠김 — 연결된 노드를 먼저 해금';
     Gfx.text(ctx, status, dx + dw - 8, dy + 6, st === 'own' ? COL.green : st === 'avail' ? ((s.sp || 0) >= cn.cost ? COL.yellow : '#ff8a8a') : COL.dark, { small: true, align: 'right' });
     Gfx.para(ctx, cn.desc, dx + 8, dy + 21, dw - 16, '#d8d4e8', { small: true, maxLines: 2 });
-    if (!cn.branch) Gfx.para(ctx, '방향키로 노드 이동 · Z 해금 · X 닫기', dx + 8, dy + 37, dw - 16, COL.dim, { small: true });
+    UI.hints(ctx, dx + dw - 6, dy + dh - 14, [['방향키', '이동'], ['Z', '해금'], ['X', '닫기']], 'right');
   }
 }

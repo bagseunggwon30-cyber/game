@@ -830,14 +830,15 @@ class MissionScene {
     if (L === 'back') this.drawDarkness(ctx, cam);
     // 플로팅 텍스트
     for (const f of this.floaters) Gfx.text(ctx, f.text, f.x - cam.x, f.y - cam.y, f.col, { small: true, align: 'center' });
-    // 상호작용 안내
+    // 상호작용 안내 (키캡 + 이름)
     if (this.prompt && !this.locked) {
       const o = this.prompt;
       const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함' }[o.type];
-      const tx = o.x + o.w / 2 - cam.x, ty = o.y - 14 - cam.y + Math.sin(this.time * 0.15) * 1.5;
-      const w = Gfx.measure(ctx, label, { small: true }) + 20;
-      Gfx.panel(ctx, tx - w / 2, ty - 2, w, 14, { inner: false, edge: COL.yellow });
-      Gfx.text(ctx, '↑ ' + label, tx, ty, COL.white, { small: true, align: 'center' });
+      const tx = Math.round(o.x + o.w / 2 - cam.x), ty = Math.round(o.y - 16 - cam.y + Math.sin(this.time * 0.15) * 1.5);
+      const w = Gfx.measure(ctx, label, { small: true }) + 22;
+      UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
+      UI.keycap(ctx, tx - w / 2 + 3, ty, '↑');
+      Gfx.text(ctx, label, tx - w / 2 + 17, ty, UI.C.text, { small: true, shadow: false });
     }
     this.drawEffects(ctx, L);
     this.drawHUD(ctx);
@@ -1059,89 +1060,113 @@ class MissionScene {
   }
 
   drawHUD(ctx) {
-    const p = this.player, s = this.s;
-    // 좌상단: 체력 / 정신력 / 공포
-    Gfx.panel(ctx, 4, 4, 128, 49, { fill: 'rgba(10,9,16,0.8)', inner: false });
-    Gfx.text(ctx, 'HP', 9, 7, '#ff8a8a', { small: true });
-    Gfx.bar(ctx, 28, 9, 76, 5, p.hp / p.maxHp, COL.hp);
-    Gfx.text(ctx, String(Math.max(0, Math.ceil(p.hp))), 127, 7, COL.white, { small: true, align: 'right' });
-    Gfx.text(ctx, 'SAN', 9, 18, '#b8acff', { small: true });
-    Gfx.bar(ctx, 28, 20, 76, 5, p.san / p.maxSan, p.layer === 'back' && this.time % 40 < 20 ? '#b8a8ff' : COL.san);
-    Gfx.text(ctx, String(Math.max(0, Math.ceil(p.san))), 127, 18, COL.white, { small: true, align: 'right' });
+    const p = this.player, s = this.s, C = UI.C;
+    // 모서리 그림자로 가독성 확보 (박스 없음)
+    UI.corner(ctx, 0, 0, 120, 0.6);
+    UI.corner(ctx, VW, 0, 110, 0.55);
+    UI.corner(ctx, 0, VH, 90, 0.5);
+    // ── 좌상단: 체력 / 정신력 / 공포 ──
     const panic = p.st.has('panic');
-    const fearCol = panic ? (this.time % 10 < 5 ? '#ff3a5a' : '#ffffff') : p.fear >= 50 ? '#ff6a3a' : '#c8803a';
-    Gfx.text(ctx, '공포', 9, 29, panic ? '#ff3a5a' : '#ffa86a', { small: true });
-    Gfx.bar(ctx, 28, 31, 76, 5, p.fear / 100, fearCol);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(66, 30, 1, 7);
-    Gfx.text(ctx, panic ? '!!' : String(Math.floor(p.fear)), 127, 29, panic ? '#ff3a5a' : COL.white, { small: true, align: 'right' });
-    // 레이어 표시
+    if (this.hpGhost == null) this.hpGhost = p.hp;
+    this.hpGhost = this.hpGhost > p.hp ? Math.max(p.hp, this.hpGhost - 0.6) : p.hp;
+    const rows = [
+      { ic: 'hp', v: p.hp, max: p.maxHp, col: p.hp < p.maxHp * 0.3 && this.time % 30 < 15 ? '#ff8a8a' : '#e8464e', ghost: this.hpGhost / p.maxHp },
+      { ic: 'san', v: p.san, max: p.maxSan, col: p.layer === 'back' ? '#b0a0ff' : '#8f7cff' },
+      { ic: 'fear', v: p.fear, max: 100, col: panic ? (this.time % 10 < 5 ? '#ff3a5a' : '#ffffff') : p.fear >= 50 ? '#ff6a3a' : '#d08a48', ticks: [0.5] },
+    ];
+    rows.forEach((r, i) => {
+      const y = 8 + i * 11;
+      ctx.drawImage(UI.icon(r.ic), 7, y - 2);
+      UI.bar(ctx, 20, y + 1, 72, 3, r.v / r.max, r.col, { ghost: r.ghost, ghostCol: 'rgba(255,220,220,0.55)', ticks: r.ticks });
+      const num = r.ic === 'fear' && panic ? '!!' : String(Math.max(0, Math.ceil(r.v)));
+      Gfx.text(ctx, num, 96, y - 3, r.ic === 'fear' && panic ? '#ff3a5a' : C.sub, { small: true });
+    });
+    // 레이어 배지 + 뒤집기 대기
     const back = p.layer === 'back';
-    Gfx.text(ctx, back ? '◆ 뒷면' : '◇ 표면', 9, 40, back ? '#ff5a8a' : '#f4f0e6', { small: true });
+    const lw = UI.pill(ctx, 7, 41, back ? '뒷면' : '표면', back ? '#ff5a8a' : '#d8d4e4', { dot: true });
     const cdF = panic ? 0 : 1 - p.flipCd / this.D.flipCd;
-    Gfx.bar(ctx, 52, 43, 28, 2, cdF, cdF >= 1 ? COL.yellow : COL.dark);
-    // 상태 효과 칩 (좌하단, 소모품 칸 위)
-    let cx = 4, cy = VH - 38;
+    UI.bar(ctx, 7 + lw + 4, 46, 22, 2, cdF, cdF >= 1 ? C.accent : C.mute);
+    if (cdF >= 1 && !panic) UI.keycap(ctx, 7 + lw + 30, 41, 'C');
+    // 상태 효과 아이콘
+    let sx = 7;
     for (const c of this.statusChips()) {
-      const w = Gfx.measure(ctx, c.label, { small: true }) + 10;
-      if (cx + w > 132) { cx = 4; cy -= 15; }
-      const blink = c.id === 'panic' && this.time % 12 < 6;
-      Gfx.panel(ctx, cx, cy, w, 14, { fill: blink ? 'rgba(120,10,30,0.9)' : 'rgba(10,9,16,0.85)', edge: c.col, inner: false });
-      Gfx.text(ctx, c.label, cx + 5, cy + 1, c.col, { small: true });
-      if (c.frac != null) { ctx.fillStyle = c.col; ctx.fillRect(cx + 2, cy + 12, Math.round((w - 4) * clamp(c.frac, 0, 1)), 1); }
-      cx += w + 2;
+      UI.statusTile(ctx, sx, 57, c.id, c.frac, c.id === 'erosion' || c.id === 'rage' ? p.st.stacks(c.id) : c.id === 'shield' ? p.shield : 0);
+      sx += 15;
     }
-    // 우상단: 목표
+    const chips = this.statusChips();
+    if (chips.length && this.time % 240 < 120) {
+      // 가장 중요한 상태 이름을 잠깐 표시
+      const c = chips[0];
+      Gfx.text(ctx, c.label, 7, 72, c.col, { small: true });
+    }
+    // ── 우상단: 목표 ──
     const ob = OBJECTIVES[this.obj] || { name: '최종 결재', col: '#ff5a6a' };
     const otext = this.objText();
-    const ow = Math.max(110, Gfx.measure(ctx, otext) + 20);
-    Gfx.panel(ctx, VW - ow - 4, 4, ow, 30, { fill: 'rgba(10,9,16,0.8)', inner: false, edge: ob.col });
-    Gfx.text(ctx, ob.name + ' · ' + THEMES[this.theme].short, VW - ow + 4, 7, ob.col, { small: true });
-    Gfx.text(ctx, otext, VW - ow + 4, 18, this.objState.complete ? COL.green : COL.white);
-    // 아티팩트 수
+    ctx.fillStyle = ob.col; ctx.fillRect(VW - 6, 7, 2, 22);
+    Gfx.text(ctx, ob.name + ' · ' + THEMES[this.theme].short, VW - 11, 6, ob.col, { small: true, align: 'right' });
+    Gfx.text(ctx, otext, VW - 11, 17, this.objState.complete ? COL.green : C.text, { align: 'right', bold: true });
     if (this.run.found.length) {
-      ctx.drawImage(SPR.icon.frame, VW - 40, 38);
-      Gfx.text(ctx, 'x' + this.run.found.length, VW - 24, 40, COL.pink, { small: true });
+      const t = '× ' + this.run.found.length;
+      const tw = Gfx.measure(ctx, t, { small: true });
+      ctx.drawImage(SPR.icon.frame, VW - 25 - tw, 33);
+      Gfx.text(ctx, t, VW - 11, 35, COL.pink, { small: true, align: 'right' });
     }
-    // 하단: 소모품
+    // ── 소모품 슬롯 (좌하단 · 터치 기기에선 방향 패드를 피해 좌상단 아래) ──
     const id = this.currentItem();
-    Gfx.panel(ctx, 4, VH - 22, 120, 18, { fill: 'rgba(10,9,16,0.8)', inner: false });
+    const iy = Input.touchEnabled ? 86 : VH - 28;
+    UI.card(ctx, 6, iy, 22, 22, { fill: 'rgba(12,11,19,0.85)', border: id ? C.line2 : C.line });
     if (id) {
-      ctx.drawImage(SPR.icon[ITEMS[id].icon], 7, VH - 20);
-      Gfx.text(ctx, ITEMS[id].name + ' x' + s.items[id], 23, VH - 19, COL.white, { small: true });
-      Gfx.text(ctx, 'V', 116, VH - 19, COL.yellow, { small: true, align: 'right' });
-    } else Gfx.text(ctx, '소모품 없음', 10, VH - 19, COL.dark, { small: true });
-    // 보스 체력
+      ctx.drawImage(SPR.icon[ITEMS[id].icon], 10, iy + 4);
+      Gfx.text(ctx, String(s.items[id]), 27, iy + 12, C.text, { small: true, align: 'right' });
+      Gfx.text(ctx, ITEMS[id].name, 33, iy, C.text, { small: true });
+      const kw = UI.keycap(ctx, 33, iy + 13, 'V');
+      Gfx.text(ctx, '사용', 36 + kw, iy + 13, C.mute, { small: true });
+    } else Gfx.text(ctx, '빈 슬롯', 33, iy + 7, C.mute, { small: true });
+    // ── 보스 체력 ──
     if (this.boss && !this.boss.dead) {
       const b = this.boss;
-      const bx = 134, bw = VW - bx - 10, by = VH - 12;
-      Gfx.text(ctx, b.def.name, bx + bw / 2, by - 12, b.def.color, { small: true, align: 'center' });
-      Gfx.bar(ctx, bx, by, bw, 5, b.hp / b.maxHp, b.def.color);
+      const bw = 200, bx = Math.round((VW - bw) / 2), by = VH - 10;
+      Gfx.text(ctx, b.def.name, VW / 2, by - 12, C.text, { small: true, align: 'center' });
+      if (this.bossGhost == null) this.bossGhost = b.hp;
+      this.bossGhost = this.bossGhost > b.hp ? Math.max(b.hp, this.bossGhost - b.maxHp * 0.004) : b.hp;
+      UI.bar(ctx, bx, by, bw, 3, b.hp / b.maxHp, b.def.color, { ghost: this.bossGhost / b.maxHp, ticks: [0.5] });
     }
     if (this.bossBanner > 0 && this.boss) {
       const a = clamp(this.bossBanner / 30, 0, 1) * clamp((150 - this.bossBanner) / 20, 0, 1);
       ctx.globalAlpha = a;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 70, VW, 40);
-      Gfx.text(ctx, this.boss.def.title, VW / 2, 76, this.boss.def.color, { align: 'center', small: true });
-      Gfx.text(ctx, this.boss.def.name, VW / 2, 90, COL.white, { align: 'center', bold: true });
+      const g = ctx.createLinearGradient(0, 0, VW, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 74, VW, 38);
+      ctx.fillStyle = this.boss.def.color; ctx.fillRect(VW / 2 - 40, 74, 80, 1); ctx.fillRect(VW / 2 - 40, 111, 80, 1);
+      Gfx.text(ctx, this.boss.def.title, VW / 2, 79, this.boss.def.color, { align: 'center', small: true });
+      Gfx.text(ctx, this.boss.def.name, VW / 2, 92, C.text, { align: 'center', bold: true });
       ctx.globalAlpha = 1;
     }
-    // 시작 배너
+    // ── 시작 배너 ──
     if (this.bannerT > 0 && !Game.modals.length) {
       const a = clamp(this.bannerT / 30, 0, 1) * clamp((150 - this.bannerT) / 20, 0, 1);
       ctx.globalAlpha = a;
-      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 60, VW, 46);
-      Gfx.text(ctx, THEMES[this.theme].name, VW / 2, 66, COL.yellow, { align: 'center', bold: true });
-      Gfx.text(ctx, (OBJECTIVES[this.obj] ? OBJECTIVES[this.obj].desc : '청명의 최상층으로 향한다.'), VW / 2, 82, '#d8d4e8', { align: 'center', small: true });
-      Gfx.text(ctx, '위험도 ' + '★'.repeat(this.diff), VW / 2, 94, '#ff8a8a', { align: 'center', small: true });
+      const g = ctx.createLinearGradient(0, 0, VW, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.72)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 70, VW, 44);
+      Gfx.text(ctx, THEMES[this.theme].name, VW / 2, 74, C.text, { align: 'center', bold: true });
+      Gfx.text(ctx, (OBJECTIVES[this.obj] ? OBJECTIVES[this.obj].desc : '청명의 최상층으로 향한다.'), VW / 2, 89, C.sub, { align: 'center', small: true });
+      const stars = '★'.repeat(this.diff) + '☆'.repeat(5 - this.diff);
+      Gfx.text(ctx, '위험도 ' + stars, VW / 2, 101, '#ff8a8a', { align: 'center', small: true });
       ctx.globalAlpha = 1;
     }
-    // 튜토리얼 힌트
+    // ── 안내 (TIP) ──
     if (this.hintT > 0 && this.hintText) {
       const a = clamp(this.hintT / 30, 0, 1);
       ctx.globalAlpha = a;
-      const w = Math.min(VW - 20, Gfx.measure(ctx, this.hintText, { small: true }) + 24);
-      Gfx.panel(ctx, (VW - w) / 2, 58, w, 18, { edge: '#62d6e8', inner: false });
-      Gfx.text(ctx, this.hintText, VW / 2, 62, '#bff4ff', { align: 'center', small: true });
+      const w = Math.min(250, Gfx.measure(ctx, this.hintText, { small: true }) + 36);
+      ctx.font = FONT_S;
+      const lines = wrapText(ctx, this.hintText, w - 34);
+      const h = 6 + lines.length * 11;
+      const x = Math.round((VW - w) / 2), y = VH - 34 - h - (this.boss ? 6 : 0);
+      UI.card(ctx, x, y, w, h + 2, { fill: 'rgba(12,11,19,0.92)', border: '#2f5560', accent: '#62d6e8', accentSide: 'left' });
+      UI.pill(ctx, x + 5, y + 3, 'TIP', '#62d6e8');
+      lines.forEach((ln, i) => Gfx.text(ctx, ln, x + 30, y + 4 + i * 11, '#d4f4fa', { small: true, shadow: false }));
       ctx.globalAlpha = 1;
     }
   }

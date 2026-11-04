@@ -79,13 +79,15 @@ const Gfx = {
   },
 
   // ── 텍스트 ──
+  shadow: false,   // 기본 그림자 여부 (게임 화면 위 HUD에서만 켬)
   text(ctx, str, x, y, color = COL.white, opt = {}) {
     ctx.font = opt.font || (opt.small ? FONT_S : opt.bold ? FONT_B : FONT_M);
     ctx.textBaseline = 'top';
     ctx.textAlign = opt.align || 'left';
     const xx = Math.round(x), yy = Math.round(y);
-    if (opt.shadow !== false) {
-      ctx.fillStyle = opt.shadowColor || 'rgba(0,0,0,0.85)';
+    const sh = opt.shadow === undefined ? this.shadow : opt.shadow;
+    if (sh) {
+      ctx.fillStyle = opt.shadowColor || 'rgba(0,0,0,0.7)';
       ctx.fillText(str, xx + 1, yy + 1);
     }
     ctx.fillStyle = color;
@@ -95,6 +97,13 @@ const Gfx = {
   measure(ctx, str, opt = {}) {
     ctx.font = opt.font || (opt.small ? FONT_S : opt.bold ? FONT_B : FONT_M);
     return ctx.measureText(str).width;
+  },
+  // 폭에 맞게 자르기 (…)
+  fit(ctx, str, maxW, opt = {}) {
+    if (this.measure(ctx, str, opt) <= maxW) return str;
+    let s = str;
+    while (s.length > 1 && this.measure(ctx, s + '…', opt) > maxW) s = s.slice(0, -1);
+    return s + '…';
   },
   // 여러 줄 텍스트 (자동 줄바꿈). 반환: 사용한 높이
   para(ctx, str, x, y, maxW, color = COL.white, opt = {}) {
@@ -106,33 +115,12 @@ const Gfx = {
     return Math.min(lines.length, max) * lh;
   },
 
-  // ── 패널 (픽셀 테두리) ──
+  // ── 패널 (UI 키트 카드로 위임) ──
   panel(ctx, x, y, w, h, opt = {}) {
-    x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
-    const edge = opt.edge || COL.panelEdge;
-    ctx.fillStyle = opt.fill || COL.panel;
-    ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-    ctx.fillStyle = edge;
-    ctx.fillRect(x + 2, y, w - 4, 1);
-    ctx.fillRect(x + 2, y + h - 1, w - 4, 1);
-    ctx.fillRect(x, y + 2, 1, h - 4);
-    ctx.fillRect(x + w - 1, y + 2, 1, h - 4);
-    ctx.fillRect(x + 1, y + 1, 1, 1);
-    ctx.fillRect(x + w - 2, y + 1, 1, 1);
-    ctx.fillRect(x + 1, y + h - 2, 1, 1);
-    ctx.fillRect(x + w - 2, y + h - 2, 1, 1);
-    if (opt.inner !== false) {
-      ctx.fillStyle = opt.edge2 || COL.panelEdge2;
-      ctx.fillRect(x + 2, y + 2, w - 4, 1);
-    }
+    UI.card(ctx, x, y, w, h, { fill: opt.fill, border: opt.edge || UI.C.line });
   },
-
-  bar(ctx, x, y, w, h, frac, color, back = '#1a1826', edge = '#000') {
-    frac = clamp(frac, 0, 1);
-    ctx.fillStyle = edge; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-    ctx.fillStyle = back; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = color; ctx.fillRect(x, y, Math.round(w * frac), h);
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(x, y, Math.round(w * frac), 1);
+  bar(ctx, x, y, w, h, frac, color) {
+    UI.bar(ctx, x, y, w, h, frac, color);
   },
 
   // ── 절차적 스프라이트 도구 ──

@@ -79,14 +79,14 @@ GitHub Pages에 그대로 올려도 됩니다. 터치 기기에서는 화면 버
 index.html            진입점 (스크립트 로드 순서 정의)
 css/style.css         레이아웃, 터치 버튼, 폰트
 assets/fonts/         Galmuri 도트 폰트 (SIL OFL 1.1, OFL-Galmuri.txt 참고)
-js/engine/            util(난수·한글 조사), input(키보드·터치), audio(WebAudio 절차 사운드), gfx(캔버스·도트 도구)
+js/engine/            util(난수·한글 조사), input(키보드·터치), audio(WebAudio 절차 사운드), gfx(캔버스·도트 도구), uikit(UI 부품)
 js/data/              content(테마·적·보스·아티팩트·아이템), story(대사·문서·엔딩), skills(스킬트리·상태 효과), sprites(절차적 도트 스프라이트)
 js/game/              state(저장·하루 진행), level(이중 레이어 레벨 생성·충돌), entities(플레이어·적),
                       boss(보스 패턴), ui(대화·메뉴), skilltree(마음 지도 화면), mission(임무 씬), hub(동네 허브), scenes(타이틀·결과·엔딩)
 js/main.js            고정 60fps 루프, 씬/모달 관리
 ```
 
-모든 그래픽(캐릭터, 적, 보스, 타일, 소품, 아이콘)과 사운드는 코드로 생성됩니다. 진행 상황은 브라우저 `localStorage`에 저장됩니다.
+모든 그래픽(캐릭터, 적, 보스, 타일, 소품, 아이콘)과 사운드는 코드로 생성됩니다. UI는 `js/engine/uikit.js`의 공용 부품(카드, 키캡 안내, 슬림 게이지, 상태 아이콘, 휴대폰 프레임)으로 그립니다. 진행 상황은 브라우저 `localStorage`에 저장됩니다.
 
 ## 크레딧
 
