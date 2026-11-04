@@ -246,7 +246,10 @@ class HubScene {
     Gfx.text(ctx, '오염', rx + 6, 30, COL.pink, { small: true }); Gfx.bar(ctx, rx + 32, 33, 88, 3, s.contamination / 100, COL.pink);
     const un = unreadCount(s);
     Gfx.text(ctx, 'V 휴대폰' + (un ? ` (${un})` : ''), VW - 8, VH - 14, un ? COL.yellow : COL.dim, { small: true, align: 'right' });
-    if (s.statPoints > 0) Gfx.text(ctx, '★ 승급 포인트 ' + s.statPoints + ' — 청명관리', 8, VH - 14, COL.green, { small: true });
+    const notes = [];
+    if (s.statPoints > 0) notes.push(['★ 승급 포인트 ' + s.statPoints + ' (청명관리)', COL.green]);
+    if ((s.sp || 0) > 0) notes.push(['✦ 마음 조각 ' + s.sp + ' (휴대폰 · 마음 지도)', '#a99cff']);
+    notes.forEach(([t, c], i) => Gfx.text(ctx, t, 8, VH - 14 - i * 12, c, { small: true }));
   }
 
   // ───────────── 메뉴들 ─────────────
@@ -260,6 +263,7 @@ class HubScene {
         { label: '틈새 — 알바 목록', desc: '오늘 지원할 수 있는 알바를 본다.', onSelect: () => this.openJobs() },
         { label: '메시지', badge: unreadCount(s) || null, desc: '받은 메시지를 확인한다.', onSelect: () => this.openMessages() },
         { label: `메모 — 진실 조각 ${s.truths.length}/10`, desc: '현장에서 모은 문서들. 청명의 이면.', onSelect: () => this.openTruths() },
+        { label: '마음 지도 — 스킬트리', badge: s.sp || null, desc: '마음 조각(SP)으로 공포·분노·망각·의심·희망 다섯 갈래의 노드를 해금한다.', onSelect: () => Game.push(new SkillTreeView(s)) },
         { label: '내 상태', desc: '능력치, 능력, 장비를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
         { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
         { label: Sound.muted ? '소리 켜기' : '소리 끄기', desc: '사운드를 전환한다.', onSelect: () => Sound.toggleMute() },
@@ -338,6 +342,7 @@ class HubScene {
       title: '옥탑방', w: 210, desc: true,
       refresh: () => [
         { label: '은닉처', right: s.stash.length + '개', desc: '장판 밑에 숨겨 둔 아티팩트. 흡수하면 강해지지만 오염된다.', onSelect: () => this.openStash() },
+        { label: '마음 지도', right: 'SP ' + (s.sp || 0), desc: '스킬트리. 다섯 갈래의 마음을 키운다.', onSelect: () => Game.push(new SkillTreeView(s)) },
         { label: '잠자기', desc: s.workedToday ? '오늘은 여기까지. 다음 날로 넘어간다.' : '일하지 않고 하루를 넘긴다.', onSelect: () => this.sleep() },
         { label: '휴대폰', desc: '알바 목록, 메시지, 메모.', onSelect: () => this.openPhone() },
         { label: '저장하기', desc: '진행 상황을 저장한다. (허브에 올 때마다 자동 저장)', onSelect: () => { saveGame(s); Game.toast('저장했다.', COL.green); } },
@@ -368,11 +373,12 @@ class HubScene {
           m.close();
           const idx = s.stash.indexOf(id);
           if (idx >= 0) s.stash.splice(idx, 1);
+          const contGain = Math.round(RARITY[a.rarity].cont * (1 - skillMods(s).contAbs));
           const got = absorbArtifact(s, id);
           Sound.play('artifact');
           Gfx.shake(3, 20);
           this.glitch = 20;
-          Game.push(new TextView('흡수: ' + a.name, `손에 쥔 ${a.name}이(가) 피부 속으로 스며들었다.\n\n${got.join('\n')}\n오염도 +${RARITY[a.rarity].cont}  (현재 ${Math.round(s.contamination)})`, () => { saveGame(s); this.checkDissolve(); }, { icon: SPR.icon[a.icon], titleCol: COL.pink }));
+          Game.push(new TextView('흡수: ' + a.name, `손에 쥔 ${a.name}이(가) 피부 속으로 스며들었다.\n\n${got.join('\n')}\n오염도 +${contGain}  (현재 ${Math.round(s.contamination)})`, () => { saveGame(s); this.checkDissolve(); }, { icon: SPR.icon[a.icon], titleCol: COL.pink }));
         } },
         { label: '그대로 둔다', desc: '감사에 걸리지 않기를.', onSelect: (m) => m.close() },
       ],
@@ -485,6 +491,14 @@ class HubScene {
           addContamination(s, -15);
           Sound.play('anchor');
           Game.toast('오염도 -15', COL.pink);
+          saveGame(s);
+        } },
+        { label: '마음 정리 (스킬 초기화)', right: won(80000), disabled: s.skills.length <= 1 || s.money < 80000, desc: `회사 상담실에서 마음을 "정리"받는다. 해금한 노드를 모두 되돌리고 마음 조각 ${skillSpent(s)}개를 돌려받는다.`, onSelect: () => {
+          if (!spendMoney(s, 80000)) return;
+          s.sp = (s.sp || 0) + skillSpent(s);
+          s.skills = ['core'];
+          Sound.play('anchor');
+          Game.toast('마음 지도가 초기화되었다.', '#a99cff');
           saveGame(s);
         } },
         { label: '나가기', desc: '', onSelect: (m) => m.close() },

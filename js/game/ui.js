@@ -233,7 +233,8 @@ class StatusView {
       Gfx.text(ctx, '진실 조각 ' + s.truths.length + '/10', gx, gy + 54, COL.cyan);
       Gfx.text(ctx, '은닉 ' + s.stash.length + ' · 흡수 ' + s.absorbed.length, gx, gy + 68, COL.dim);
       Gfx.text(ctx, '제출 ' + s.submitted + ' · 임무 ' + s.record.missions, gx, gy + 82, COL.dim);
-      if (s.statPoints > 0) Gfx.text(ctx, '승급 포인트 ' + s.statPoints + ' (사무소)', gx, gy + 100, COL.green, { small: true });
+      Gfx.text(ctx, `마음 지도 ${s.skills.length - 1}노드 · SP ${s.sp || 0}`, gx, gy + 100, '#a99cff', { small: true });
+      if (s.statPoints > 0) Gfx.text(ctx, '승급 포인트 ' + s.statPoints + ' (사무소)', gx, gy + 112, COL.green, { small: true });
     } else {
       let yy = y + 30;
       Gfx.text(ctx, '능력', x + 12, yy, COL.cyan, { bold: true }); yy += 15;

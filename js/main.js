@@ -61,7 +61,7 @@ const Game = {
     if (this.scene) this.scene.draw(ctx);
     for (const m of this.modals) m.draw(ctx);
     // 토스트 (화면 상단 HUD 아래)
-    let y = 50;
+    let y = 80;
     for (let i = this.toasts.length - 1; i >= 0; i--) {
       const t = this.toasts[i];
       const a = clamp(t.t / 20, 0, 1) * clamp((170 - t.t) / 8, 0, 1);

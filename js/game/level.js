@@ -469,7 +469,7 @@ function generateMission(spec) {
     return null;
   };
   if (!spec.tutorial) {
-    const nArt = 2 + Math.floor(d / 2) + (rng.chance(0.05 * spec.luk) ? 1 : 0);
+    const nArt = 2 + Math.floor(d / 2) + (rng.chance(0.05 * spec.luk) ? 1 : 0) + (spec.extraArt || 0);
     for (let i = 0; i < nArt; i++) {
       const s = takeSpot(i < 2 ? 'secret' : 'ground');
       if (!s) continue;

@@ -78,13 +78,13 @@ const ENEMIES = {
 
 // 보스 정의 (메인 패턴, 소환물)
 const BOSSES = {
-  door: { name: '4.5층의 주민', hp: 170, w: 28, h: 40, patterns: ['dash', 'slam', 'summon'], minion: 'follower', color: '#f2d040', title: '말소 대상 · 4.5층' },
-  receipt: { name: '새벽 3시의 손님', hp: 190, w: 22, h: 44, patterns: ['spread', 'teleport', 'beam'], minion: 'crawler', color: '#ff2a3a', title: '말소 대상 · 새벽 3시의 손님' },
-  speaker: { name: '0호선 안내원', hp: 210, w: 22, h: 44, patterns: ['ring', 'sweep', 'spread'], minion: 'notif', color: '#3af0ff', title: '말소 대상 · 0호선' },
-  clock: { name: '자율학습 감독', hp: 210, w: 22, h: 44, patterns: ['rain', 'dash', 'ring'], minion: 'crawler', color: '#c46cff', title: '말소 대상 · 13번째 계단' },
-  monitor: { name: '웃는 썸네일', hp: 200, w: 36, h: 32, patterns: ['beam', 'summon', 'rain'], minion: 'notif', color: '#f2f23a', title: '말소 대상 · 웃는 썸네일', flying: true },
-  flyer: { name: '틈새 공고', hp: 300, w: 22, h: 46, patterns: ['spread', 'summon', 'teleport', 'rain'], minion: 'follower', color: '#f2c230', title: '말소 대상 · 틈새 공고 (구 민재)' },
-  suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명' },
+  door: { name: '4.5층의 주민', hp: 170, w: 28, h: 40, patterns: ['dash', 'slam', 'summon'], minion: 'follower', color: '#f2d040', title: '말소 대상 · 4.5층', eff: 'fear' },
+  receipt: { name: '새벽 3시의 손님', hp: 190, w: 22, h: 44, patterns: ['spread', 'teleport', 'beam'], minion: 'crawler', color: '#ff2a3a', title: '말소 대상 · 새벽 3시의 손님', eff: 'erosion' },
+  speaker: { name: '0호선 안내원', hp: 210, w: 22, h: 44, patterns: ['ring', 'sweep', 'spread'], minion: 'notif', color: '#3af0ff', title: '말소 대상 · 0호선', eff: 'slow' },
+  clock: { name: '자율학습 감독', hp: 210, w: 22, h: 44, patterns: ['rain', 'dash', 'ring'], minion: 'crawler', color: '#c46cff', title: '말소 대상 · 13번째 계단', eff: 'slow' },
+  monitor: { name: '웃는 썸네일', hp: 200, w: 36, h: 32, patterns: ['beam', 'summon', 'rain'], minion: 'notif', color: '#f2f23a', title: '말소 대상 · 웃는 썸네일', flying: true, eff: 'erosion' },
+  flyer: { name: '틈새 공고', hp: 300, w: 22, h: 46, patterns: ['spread', 'summon', 'teleport', 'rain'], minion: 'follower', color: '#f2c230', title: '말소 대상 · 틈새 공고 (구 민재)', eff: 'erosion' },
+  suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명', eff: 'terror' },
 };
 
 // 아티팩트: rarity 0=흔함 1=희귀 2=이상
@@ -124,7 +124,8 @@ const ABILITIES = {
 // 소모품 (편의점)
 const ITEMS = {
   drink: { name: '에너지드링크', icon: 'drink', price: 6000, desc: '체력 +35. 카페인으로 버틴다.', hp: 35 },
-  candy: { name: '박하사탕', icon: 'candy', price: 5000, desc: '정신력 +30. 화한 맛이 머리를 맑게 한다.', san: 30 },
+  candy: { name: '박하사탕', icon: 'candy', price: 5000, desc: '정신력 +30, 공포 -10. 화한 맛이 머리를 맑게 한다.', san: 30, fear: 10 },
+  coffee: { name: '따뜻한 캔커피', icon: 'coffee', price: 7000, desc: '희망 25초, 공포 -35. 손이 따뜻해지면 마음도 조금 놓인다.', hope: 25, fear: 35 },
   gimbap: { name: '삼각김밥', icon: 'gimbap', price: 3500, desc: '체력 +15, 정신력 +15. 참치마요.', hp: 15, san: 15 },
   salt: { name: '굵은 소금', icon: 'salt', price: 8000, desc: '던져서 뒷면의 존재에게 큰 피해(30).', throw: 30 },
   charm: { name: '부적 스티커', icon: 'charm', price: 12000, desc: '다음 피해 1회를 막는다. 효과는 진짜다.', shield: 1 },

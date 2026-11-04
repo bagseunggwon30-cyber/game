@@ -21,6 +21,9 @@ class Player {
     this.landT = 0;
     this.dead = false;
     this.frozen = 0;
+    this.fear = 0;                 // 공포 수치 0~100
+    this.st = new StatusSet();     // 버프 / 디버프
+    this.jitT = 40; this.jitDir = 0; this.jitLeft = 0;
   }
   get cx() { return this.x + this.w / 2; }
   get cy() { return this.y + this.h / 2; }
@@ -39,6 +42,11 @@ class Player {
     const ctrl = this.frozen <= 0 && !sc.locked;
     let mx = 0;
     if (ctrl) mx = (Input.down('right') ? 1 : 0) - (Input.down('left') ? 1 : 0);
+    // 패닉: 몸이 제멋대로 움직인다
+    if (ctrl && this.st.has('panic') && !D.m.frenzy) {
+      if (this.jitLeft > 0) { this.jitLeft--; mx = this.jitDir; }
+      else if (--this.jitT <= 0) { this.jitDir = Math.random() < 0.5 ? -1 : 1; this.jitLeft = rndi(10, 18); this.jitT = rndi(26, 50); }
+    }
 
     // 대시
     if (ctrl && D.ab.dash && this.dashCd <= 0 && (Input.pressed('dash') || Input.tapDash)) {
@@ -55,7 +63,7 @@ class Player {
       if (sc.time % 2 === 0) sc.particles.push({ x: this.cx, y: this.cy + rnd(-8, 8), vx: -this.facing * 0.5, vy: 0, life: 14, col: this.layer === 'back' ? '#ff5a8a' : '#f2c230', size: 2 });
     } else {
       const atkSlow = this.atkT > 0 && this.onGround ? 0.45 : 1;
-      const target = mx * D.speed * atkSlow;
+      const target = mx * D.speed * atkSlow * sc.speedMul();
       const acc = this.onGround ? 0.4 : 0.28;
       this.vx = approach(this.vx, target, acc);
       if (mx !== 0 && this.atkT <= 0) this.facing = mx;
@@ -139,7 +147,7 @@ class Player {
 
   startAttack() {
     const sc = this.sc, w = sc.D.weapon;
-    this.atkTotal = Math.round(w.cd * sc.D.atkCdMul);
+    this.atkTotal = Math.max(8, Math.round(w.cd * sc.D.atkCdMul * sc.atkSpdMul()));
     this.atkT = this.atkTotal;
     this.atkCd = this.atkTotal + 2;
     this.hitSet.clear();
@@ -148,10 +156,14 @@ class Player {
       for (let i = 0; i < 3; i++) {
         sc.projectiles.push({
           x: this.cx + this.facing * 8, y: this.y + 11, vx: this.facing * rnd(3.8, 4.6), vy: rnd(-0.5, 0.5),
-          r: 3, dmg: w.dmg * sc.D.atkMul, layer: this.layer, from: 'player', life: 26 + i * 4, col: '#9ae8ff', kind: 'spray',
+          r: 3, dmg: w.dmg * sc.dmgMul(false), layer: this.layer, from: 'player', life: 26 + i * 4, col: '#9ae8ff', kind: 'spray',
         });
       }
     } else Sound.play('swing');
+    // 폭주: 분노 3중첩 이상이면 충격파
+    if (sc.D.m.rageWave && this.st.stacks('rage') >= 3) {
+      sc.projectiles.push({ x: this.cx + this.facing * 10, y: this.y + 10, vx: this.facing * 4.2, vy: 0, r: 6, dmg: w.dmg * sc.dmgMul(false) * 0.7, layer: this.layer, from: 'player', life: 40, col: '#ff9a3a', kind: 'rwave', pierce: true });
+    }
   }
 
   attackBox() {
@@ -167,15 +179,15 @@ class Player {
     const p = 1 - this.atkT / this.atkTotal;
     if (p > 0.22 && p < 0.62) {
       const box = this.attackBox();
-      const crit = Math.random() < sc.D.crit;
-      const dmg = w.dmg * sc.D.atkMul * (crit ? 1.8 : 1);
+      const crit = Math.random() < sc.critChance();
+      const cm = crit ? sc.D.critMul : 1;
       for (const e of sc.enemies) {
         if (e.dead || e.layer !== this.layer || this.hitSet.has(e)) continue;
-        if (overlap(box, e)) { this.hitSet.add(e); e.hurt(dmg, this.facing, w.stun || 0, crit); }
+        if (overlap(box, e)) { this.hitSet.add(e); e.hurt(w.dmg * sc.dmgMul(false) * cm, this.facing, w.stun || 0, crit); }
       }
       if (sc.boss && !sc.boss.dead && this.layer === 'back' && !this.hitSet.has(sc.boss) && overlap(box, sc.boss.hitbox())) {
         this.hitSet.add(sc.boss);
-        sc.boss.hurt(dmg, this.facing, crit);
+        sc.boss.hurt(w.dmg * sc.dmgMul(true) * cm, this.facing, crit);
       }
     }
   }
@@ -191,7 +203,7 @@ class Player {
       for (let i = 0; i < 14; i++) sc.particles.push({ x: this.cx, y: this.cy, vx: rnd(-2, 2), vy: rnd(-2, 2), life: 24, col: '#f2d040', size: 2 });
       return false;
     }
-    const lowSan = this.san < this.maxSan * 0.3 ? 1.25 : 1;
+    const lowSan = (this.san < this.maxSan * 0.3 ? 1.25 : 1) * (this.st.has('panic') && sc.D.m.frenzy ? 0.75 : 1);
     this.hp -= Math.round(dmg * lowSan);
     this.san -= san;
     this.inv = 60; this.hurtT = 20;
@@ -203,6 +215,7 @@ class Player {
     Sound.play('hurt');
     sc.floatText(this.cx, this.y - 4, '-' + Math.round(dmg * lowSan), '#ff6a6a');
     for (let i = 0; i < 8; i++) sc.particles.push({ x: this.cx, y: this.cy, vx: rnd(-2, 2), vy: rnd(-3, 0), life: 20, col: '#e0474c', size: 2, g: 0.15 });
+    sc.onPlayerHurt(dmg);
     return true;
   }
 
@@ -331,7 +344,7 @@ class Enemy {
           if (--this.cool <= 0) {
             this.cool = 110 - Math.min(40, sc.diff * 8);
             const d = Math.max(1, Math.hypot(dx, dy));
-            sc.projectiles.push({ x: this.cx, y: this.cy, vx: dx / d * 1.9, vy: dy / d * 1.9, r: 3, dmg: this.dmg, san: 4, layer: this.layer, from: 'enemy', life: 160, col: '#c41e3a', kind: 'eye' });
+            sc.projectiles.push({ x: this.cx, y: this.cy, vx: dx / d * 1.9, vy: dy / d * 1.9, r: 3, dmg: this.dmg, san: 4, layer: this.layer, from: 'enemy', life: 160, col: '#c41e3a', kind: 'eye', eff: 'erosion' });
             Sound.play('eshoot');
           }
         }
@@ -395,7 +408,7 @@ class Enemy {
     }
     if (this.y > lvl.H * TS + 40) { this.dead = true; return; }
     // 접촉 피해
-    if (sameLayer && overlap(this, p)) p.hurt(this.dmg, this.san, this.cx);
+    if (sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
   }
 
   hurt(dmg, dir, stun = 0, crit = false) {
@@ -404,7 +417,7 @@ class Enemy {
     this.hp -= dmg;
     this.flash = 8;
     if (stun) this.stun = stun;
-    const kb = this.def.ai === 'turret' ? 0 : 2.6;
+    const kb = this.def.ai === 'turret' ? 0 : 2.6 * (1 + sc.D.m.knock);
     this.vx = dir * kb;
     if (this.def.ai === 'walker' || this.def.ai === 'hopper') this.vy = -1.6;
     sc.floatText(this.cx, this.y - 4, (crit ? '치명! ' : '') + dmg, crit ? '#f2d040' : '#ffffff');
@@ -424,6 +437,7 @@ class Enemy {
       if (Math.random() < 0.38) sc.pickups.push(makePickup({ type: 'sanorb', x: this.cx - 4, y: this.cy - 4, layer: 'back' }));
       if (sc.D.ab.sanLeech) { sc.player.san = Math.min(sc.player.maxSan, sc.player.san + 3); sc.floatText(sc.player.cx, sc.player.y - 10, 'SAN +3', COL.san); }
     }
+    sc.onKill(this);
   }
 
   draw(ctx, cam, ghost) {
@@ -455,12 +469,15 @@ class Enemy {
       ctx.drawImage(Gfx.white(spr), sx + ox, sy + oy);
       ctx.globalAlpha = 1;
     }
-    if (this.hp < this.maxHp && !ghost) {
+    if ((this.hp < this.maxHp || this.sc.D.m.sight) && !ghost) {
       Gfx.bar(ctx, sx + this.w / 2 - 8, sy - 6, 16, 2, this.hp / this.maxHp, '#ff5a8a');
     }
     if (this.stun > 0 && this.t % 6 < 3) { ctx.fillStyle = '#9ae8ff'; ctx.fillRect(sx + rndi(0, this.w), sy - 3, 2, 2); }
   }
 }
+
+// 적에게 닿았을 때 붙는 상태 이상
+const ENEMY_HIT_EFFECT = { noise: 'erosion', crawler: 'slow', watcher: 'terror', notif: 'fear', echo: 'erosion', follower: 'fear', flyer: 'erosion' };
 
 function makePickup(o) {
   return Object.assign({ w: 14, h: 14, t: Math.floor(Math.random() * 100), vy: 0, dead: false, by: o.y }, o);

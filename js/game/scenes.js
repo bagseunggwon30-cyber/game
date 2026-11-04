@@ -182,6 +182,9 @@ class ResultScene {
         if (this.story.id === 's1') { s.pendingDialogs = (s.pendingDialogs || []).concat([MINJAE_MEET]); s.jobs = genJobs(s); }
         this.log.push(['이야기 진행', '◆', COL.pink]);
       }
+      const sp = 1 + (job.diff >= 3 ? 1 : 0) + (this.story ? 1 : 0) + (run.boss ? 1 : 0);
+      s.sp = (s.sp || 0) + sp;
+      this.log.push(['마음 조각 (SP)', '+' + sp + '  → 마음 지도', '#a99cff']);
     } else if (this.result === 'retreat') {
       addTrust(s, -5);
       if (run.cash) addMoney(s, run.cash);
@@ -239,8 +242,9 @@ class ResultScene {
       Sound.play('stamp');
     } else {
       s.stash.push(id);
-      addSuspicion(s, R.sus);
-      this.log.push([`은닉: ${a.name}`, `의심+${R.sus}`, COL.orange]);
+      const sus = Math.round(R.sus * (1 - skillMods(s).sus));
+      addSuspicion(s, sus);
+      this.log.push([`은닉: ${a.name}`, `의심+${sus}`, COL.orange]);
       Sound.play('pickup');
     }
   }
@@ -279,7 +283,7 @@ class ResultScene {
       const money = Math.round(R.submit * (1 + 0.02 * s.stats.luk) / 1000) * 1000;
       const opts = [
         { t: '제출한다', d: `${won(money)} · 신뢰 +${R.trust}`, c: '#c8d0e0' },
-        { t: '몰래 챙긴다', d: `의심도 +${R.sus} (현재 ${s.suspicion})`, c: COL.orange },
+        { t: '몰래 챙긴다', d: `의심도 +${Math.round(R.sus * (1 - skillMods(s).sus))} (현재 ${s.suspicion})`, c: COL.orange },
       ];
       opts.forEach((o, i) => {
         const x = 40 + i * 156, y = 162, sel = this.choice === i;

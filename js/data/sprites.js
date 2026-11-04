@@ -368,6 +368,7 @@ const ICON_DRAW = {
   candy(c, G) { G.circle(c, 7, 7, 3, '#e8f8f0'); G.px(c, 6, 5, 2, 4, '#5ad0a0'); G.px(c, 1, 6, 3, 3, '#a8e8d0'); G.px(c, 10, 6, 3, 3, '#a8e8d0'); },
   salt(c, G) { G.px(c, 3, 3, 8, 9, '#e8e4dc'); G.px(c, 3, 3, 8, 2, '#5a7dff'); G.px(c, 5, 7, 4, 2, '#9aa8c8'); },
   charm(c, G) { G.px(c, 4, 1, 6, 12, '#f2d040'); G.px(c, 5, 3, 4, 1, '#c41e3a'); G.line(c, 7, 4, 7, 10, '#c41e3a'); G.px(c, 5, 7, 4, 1, '#c41e3a'); },
+  coffee(c, G) { G.px(c, 4, 3, 6, 9, '#8a4a2a'); G.px(c, 4, 5, 6, 3, '#f2d040'); G.px(c, 5, 2, 4, 1, '#c8ccd8'); G.px(c, 3, 0, 1, 2, '#e8e8e8'); G.px(c, 6, 0, 1, 1, '#e8e8e8'); G.px(c, 9, 1, 1, 2, '#e8e8e8'); },
   gimbap(c, G) { G.line(c, 2, 11, 7, 2, '#1a2a1a', 2); G.line(c, 7, 2, 12, 11, '#1a2a1a', 2); G.px(c, 3, 10, 9, 2, '#1a2a1a'); G.px(c, 6, 6, 3, 4, '#f4f0e6'); G.px(c, 7, 7, 1, 2, '#e8603a'); },
   receipt(c, G) { G.px(c, 4, 1, 6, 12, '#f0ece0'); for (let i = 0; i < 5; i++) G.px(c, 5, 3 + i * 2, 4 - (i % 2), 1, '#7a7a8a'); G.px(c, 4, 12, 1, 1, '#000'); G.px(c, 6, 12, 1, 1, '#000'); G.px(c, 8, 12, 1, 1, '#000'); },
   button(c, G) { G.px(c, 2, 2, 10, 10, '#9a9ca8'); G.circle(c, 7, 7, 3, '#f2c230'); G.px(c, 5, 6, 1, 3, '#3a2a10'); G.px(c, 7, 6, 1, 3, '#3a2a10'); G.px(c, 8, 8, 1, 1, '#3a2a10'); },

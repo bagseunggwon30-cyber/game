@@ -10,11 +10,11 @@ class MissionScene {
     this.theme = job.theme;
     this.th = THEMES[job.theme];
     this.obj = job.obj;
-    const randomDoc = !this.story && Math.random() < 0.3 + 0.04 * this.s.stats.luk ? this.pickRandomDoc() : null;
+    const randomDoc = !this.story && Math.random() < 0.3 + 0.04 * this.s.stats.luk + this.D.m.docChance ? this.pickRandomDoc() : null;
     this.gen = generateMission({
       theme: job.theme, obj: job.obj, diff: job.diff, seed: job.seed, luk: this.s.stats.luk,
       tutorial: this.story && this.story.tutorial, doc: this.story ? this.story.doc : null, randomDoc,
-      boss: this.story && this.story.boss,
+      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt,
     });
     this.lvl = this.gen.lvl;
     this.tiles = buildTiles(job.theme);
@@ -31,7 +31,8 @@ class MissionScene {
     this.time = 0;
     this.flipFx = 0;
     this.locked = false;
-    this.run = { found: [], cash: 0, docs: [], kills: 0, damage: 0, time: 0 };
+    this.run = { found: [], cash: 0, docs: [], kills: 0, damage: 0, time: 0, boss: false };
+    this.lastHopeUsed = false;
     this.objState = { clues: 0, cluesTotal: this.interacts.filter((o) => o.type === 'clue').length, anchors: 0, anchorsTotal: this.interacts.filter((o) => o.type === 'rift').length, complete: false, bossDone: false };
     this.ending = false;
     this.backTime = 0;
@@ -68,6 +69,7 @@ class MissionScene {
   }
   showStartBanner() {
     this.bannerT = 150;
+    if (this.m.startHope) this.addHope(this.m.startHope, '응원');
   }
 
   // ── 편의 ──
@@ -75,10 +77,160 @@ class MissionScene {
   floatText(x, y, text, col) { this.floaters.push({ x, y, text, col, t: 45 }); }
   spawnEnemy(type, x, y, layer) { const e = new Enemy(type, x, y, layer, this, this.diff); this.enemies.push(e); return e; }
 
+  // ───── 공포 / 희망 / 상태 효과 ─────
+  get m() { return this.D.m; }
+  frightened() { return this.player.fear >= 50 && !this.player.st.has('panic'); }
+  speedMul() {
+    const p = this.player;
+    let k = 1;
+    if (this.frightened()) k *= this.m.frightSpeed ? 1.05 : 0.9;
+    if (p.st.has('slow')) k *= 0.65;
+    return k;
+  }
+  atkSpdMul() {
+    const p = this.player;
+    let k = 1 - this.m.atkSpd;
+    if (this.m.berserkSpd && p.fear >= 50) k -= 0.15;
+    return Math.max(0.5, k);
+  }
+  dmgMul(isBoss) {
+    const p = this.player, m = this.m;
+    let k = this.D.atkMul * (1 + m.dmg);
+    if (p.layer === 'back') k *= 1 + m.dmgBack;
+    k *= 1 + m.fearDmg * Math.floor(p.fear / 10);
+    if (p.st.has('hope')) k *= 1.1;
+    k *= 1 + 0.08 * p.st.stacks('rage');
+    if (p.st.has('panic') && m.frenzy) k *= 1.5;
+    if (isBoss) k *= 1 + m.bossDmg;
+    return k;
+  }
+  critChance() { return this.D.crit + (this.m.conviction && this.player.st.has('hope') ? 0.12 : 0); }
+  addHope(sec, why) {
+    const p = this.player;
+    const frames = Math.round(sec * 60 * (1 + this.m.hopeDur));
+    const had = p.st.has('hope');
+    p.st.add('hope', p.st.left('hope') + frames);
+    if (!had) {
+      this.floatText(p.cx, p.y - 14, '희망' + (why ? ' · ' + why : ''), '#f2d040');
+      Sound.play('anchor');
+      if (!this.s.flags.hintHope) { this.s.flags.hintHope = true; this.showHint('희망! 공포가 덜 쌓이고, 정신력이 회복되고, 공격력이 오른다.'); }
+    }
+  }
+  addFear(n) {
+    const p = this.player;
+    if (n > 0 && this.m.hopeNoFear && p.st.has('hope')) return;
+    p.fear = clamp(p.fear + n, 0, 100);
+  }
+  addRage() {
+    this.player.st.add('rage', 300, 1, 5);
+  }
+  showHint(text) { this.hintText = text; this.hintT = 360; Sound.play('phone'); }
+  applyHitEffect(eff) {
+    const p = this.player, dd = 1 - this.m.debuffDur;
+    if (!eff) return;
+    if (eff === 'erosion') {
+      const was = p.st.stacks('erosion');
+      p.st.add('erosion', Math.round(360 * dd), 1, 3);
+      if (p.st.stacks('erosion') > was) this.floatText(p.cx, p.y - 14, '침식', '#c07cff');
+    } else if (eff === 'slow') {
+      if (!p.st.has('slow')) this.floatText(p.cx, p.y - 14, '둔화', '#7a9aff');
+      p.st.add('slow', Math.round(150 * dd));
+    } else if (eff === 'fear') this.addFear(6);
+    else if (eff === 'terror') { this.addFear(18); this.floatText(p.cx, p.y - 14, '공포!', '#ff8a5a'); }
+  }
+  onPlayerHurt() {
+    if (this.m.rageOnHit) { this.addFear(4); this.addRage(); }
+    else this.addFear(8);
+  }
+  onKill(e) {
+    const p = this.player, m = this.m;
+    if (m.rageOnKill) this.addRage();
+    if (m.fearLeech && p.fear >= 50) { p.san = Math.min(p.maxSan, p.san + 5); this.floatText(p.cx, p.y - 16, 'SAN +5', COL.san); }
+  }
+  triggerPanic() {
+    const p = this.player, m = this.m;
+    if (m.blank) {
+      p.fear = 0;
+      this.addHope(8, '백지');
+      this.floatText(p.cx, p.y - 20, '마음을 비웠다', '#a99cff');
+      return;
+    }
+    p.st.add('panic', 300);
+    p.fear = 100;
+    Sound.play('hurt'); Sound.play('whisper');
+    Gfx.shake(4, 24);
+    this.floatText(p.cx, p.y - 20, '패닉!', '#ff3a5a');
+    if (!this.s.flags.hintPanic) { this.s.flags.hintPanic = true; this.showHint('패닉! 몸이 말을 듣지 않고 뒤집기도 안 된다. 진정될 때까지 버텨라.'); }
+    if (m.scream) {
+      for (const e of this.enemies) if (!e.dead && e.layer === p.layer && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 80) e.hurt(30, sign(e.cx - p.cx) || 1, 30);
+      if (this.boss && !this.boss.dead && p.layer === 'back' && Math.hypot(this.boss.cx - p.cx, this.boss.cy - p.cy) < 90) this.boss.hurt(30, 1, false);
+      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; this.particles.push({ x: p.cx, y: p.cy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, life: 18, col: '#ff4a5a', size: 2 }); }
+    }
+  }
+  updateMind() {
+    const p = this.player, m = this.m;
+    const ended = p.st.update();
+    if (ended.includes('panic')) {
+      p.fear = 45;
+      this.floatText(p.cx, p.y - 14, '진정됐다', '#c8c4d8');
+      if (m.courage) this.addHope(12, '용기');
+    }
+    const hope = p.st.has('hope'), panic = p.st.has('panic');
+    // 공포 증감
+    if (!panic) {
+      if (p.layer === 'back') {
+        let rate = 1.0;
+        for (const e of this.enemies) {
+          if (e.dead || e.layer !== 'back') continue;
+          const d = Math.hypot(e.cx - p.cx, e.cy - p.cy);
+          if (d < 100) rate += e.type === 'watcher' ? 4 : 1.4;
+        }
+        if (this.boss && !this.boss.dead) rate += 2;
+        if (p.san < p.maxSan * 0.3) rate += 1.5;
+        let mul = 1 - m.fearGain;
+        if (hope) mul *= m.hopeNoFear ? 0 : 0.5;
+        if (m.trance) mul *= Math.max(0.3, 1 - 0.12 * p.st.stacks('rage'));
+        p.fear = Math.min(100, p.fear + rate * mul / 60);
+      } else {
+        p.fear = Math.max(0, p.fear - (m.frontRecover ? 10 : 5) / 60);
+      }
+      if (p.fear >= 100) this.triggerPanic();
+      if (p.fear >= 50 && !this.s.flags.hintFear) { this.s.flags.hintFear = true; this.showHint('공포가 쌓이고 있다(겁먹음). 100이 되면 패닉 — 표면으로 나가면 가라앉는다.'); }
+    }
+    // 지속 효과
+    if (hope) {
+      p.san = Math.min(p.maxSan, p.san + 1.5 / 60);
+      if (m.hopeHeal) p.hp = Math.min(p.maxHp, p.hp + 1 / 60);
+      if (this.time % 6 === 0) this.particles.push({ x: p.cx + rnd(-7, 7), y: p.y + p.h - rnd(0, 10), vx: 0, vy: -rnd(0.3, 0.8), life: 30, col: '#f2d040', size: 1 });
+    }
+    const ero = p.st.stacks('erosion');
+    if (ero) {
+      p.san -= 2 * ero / 60;
+      if (this.time % 10 === 0) this.particles.push({ x: p.cx + rnd(-6, 6), y: p.cy + rnd(-8, 8), vx: 0, vy: 0.4, life: 20, col: '#c07cff', size: 1 });
+    }
+    if (panic && this.time % 20 === 0) { Gfx.shake(1, 6); if (this.time % 40 === 0) Sound.play('heart'); }
+  }
+  // HUD 표시용 상태 목록
+  statusChips() {
+    const p = this.player, out = [];
+    const add = (id, label, frac) => out.push({ id, label, col: STATUS[id].col, frac, debuff: STATUS[id].debuff });
+    const sec = (id) => Math.ceil(p.st.left(id) / 60);
+    if (p.st.has('panic')) add('panic', `패닉 ${sec('panic')}`, p.st.left('panic') / 300);
+    else if (this.frightened()) add('frightened', '겁먹음', null);
+    if (p.st.has('erosion')) add('erosion', `침식×${p.st.stacks('erosion')}`, p.st.left('erosion') / 360);
+    if (p.st.has('slow')) add('slow', `둔화 ${sec('slow')}`, p.st.left('slow') / 150);
+    if (p.san < p.maxSan * 0.3) add('halluc', '환각', null);
+    if (p.st.has('hope')) { const h = p.st.m.hope; add('hope', `희망 ${sec('hope')}`, h.t / h.max); }
+    if (p.st.has('rage')) add('rage', `분노×${p.st.stacks('rage')}`, p.st.left('rage') / 300);
+    if (p.shield > 0) add('shield', `부적×${p.shield}`, null);
+    return out;
+  }
+
   // ── 레이어 전환 ──
   tryFlip() {
     const p = this.player;
     if (p.flipCd > 0) { Sound.play('deny'); return; }
+    if (p.st.has('panic')) { Sound.play('deny'); this.floatText(p.cx, p.y - 8, '손이 떨려 뒤집을 수 없다!', '#ff5a6a'); p.flipCd = 20; return; }
     const target = p.layer === 'front' ? 'back' : 'front';
     if (boxHits(this.lvl, target, p.x, p.y, p.w, p.h)) {
       Sound.play('deny');
@@ -91,7 +243,7 @@ class MissionScene {
     }
     this.setLayer(target);
     p.flipCd = this.D.flipCd;
-    if (target === 'back') p.san -= 2;
+    if (target === 'back' && !this.m.flipFree) p.san -= 2;
   }
   setLayer(target, silent) {
     const p = this.player;
@@ -120,8 +272,11 @@ class MissionScene {
       this.projectiles.push({ x: p.cx, y: p.y + 6, vx: p.facing * 3.4, vy: -2.8, r: 4, dmg: it.throw, layer: 'any', from: 'player', life: 90, col: '#f4f0e6', kind: 'salt', grav: 0.18 });
       Sound.play('swing');
     } else {
-      if (it.hp) { p.hp = Math.min(p.maxHp, p.hp + it.hp); this.floatText(p.cx, p.y - 6, 'HP +' + it.hp, '#ff8a8a'); }
-      if (it.san) { p.san = Math.min(p.maxSan, p.san + it.san); this.floatText(p.cx, p.y - 16, 'SAN +' + it.san, COL.san); }
+      const hm = 1 + this.m.healMul;
+      if (it.hp) { const v = Math.round(it.hp * hm); p.hp = Math.min(p.maxHp, p.hp + v); this.floatText(p.cx, p.y - 6, 'HP +' + v, '#ff8a8a'); }
+      if (it.san) { const v = Math.round(it.san * hm); p.san = Math.min(p.maxSan, p.san + v); this.floatText(p.cx, p.y - 16, 'SAN +' + v, COL.san); }
+      if (it.fear) p.fear = Math.max(0, p.fear - it.fear);
+      if (it.hope) this.addHope(it.hope);
       if (it.shield) { p.shield += it.shield; this.floatText(p.cx, p.y - 6, '부적 장착', '#f2d040'); }
       Sound.play('item');
     }
@@ -161,6 +316,7 @@ class MissionScene {
       case 'clue': {
         o.done = true;
         this.objState.clues++;
+        this.addHope(10, '단서');
         Sound.play('clue');
         const texts = CLUE_TEXT[this.theme];
         const t = texts[(this.objState.clues - 1) % texts.length];
@@ -251,6 +407,9 @@ class MissionScene {
     this.arenaActive = false;
     for (let y = CEIL; y < a.gy; y++) { this.lvl.set('both', a.tx0 - 1, y, T_EMPTY); this.lvl.set('both', a.tx1, y, T_EMPTY); }
     this.objState.complete = true; this.objState.bossDone = true;
+    this.run.boss = true;
+    this.addHope(20, '말소');
+    this.player.fear = 0; this.player.st.remove('panic');
     Sound.play('resolve');
     Sound.setAmbience(this.player.layer === 'back' ? 'back' : 'front');
     // 보상 아티팩트
@@ -270,6 +429,7 @@ class MissionScene {
 
   completeObjective(msg) {
     this.objState.complete = true;
+    this.addHope(20, '해냈다');
     Sound.play('resolve');
     this.toast(msg, COL.green);
     Gfx.shake(4, 20);
@@ -363,14 +523,30 @@ class MissionScene {
     this.updateInteracts();
     this.updateTriggers();
 
-    // 정신력
+    // 정신력 · 공포 · 상태 효과
     if (!p.dead && !this.locked) {
+      this.updateMind();
+      const panic = p.st.has('panic');
       if (p.layer === 'back') {
-        p.san -= this.D.drain * (this.arenaActive ? 0.5 : 1) / 60;
+        let mul = this.arenaActive ? 0.5 : 1;
+        if (this.frightened() && !this.m.coldMind) mul *= 1.25;
+        if (panic) mul *= 2;
+        p.san -= this.D.drain * mul / 60;
         this.backTime++;
         if (this.backTime % 60 === 0) addContamination(this.s, 0.05);
+      } else if (panic) {
+        p.san -= 1 / 60;
       } else {
-        p.san = Math.min(p.maxSan, p.san + 2.2 / 60);
+        p.san = Math.min(p.maxSan, p.san + 2.2 * (this.m.frontRecover ? 1.5 : 1) / 60);
+      }
+      if ((p.hp <= 0 || p.san <= 0) && this.m.lastHope && !this.lastHopeUsed) {
+        this.lastHopeUsed = true;
+        p.hp = Math.max(p.hp, 1); p.san = Math.max(p.san, 15);
+        p.inv = 120; p.st.remove('panic'); p.fear = Math.min(p.fear, 40);
+        this.addHope(15, '마지막 희망');
+        this.toast('마지막 희망 — 아직 쓰러질 수 없다!', '#f2d040');
+        Gfx.shake(4, 20);
+        for (let i = 0; i < 30; i++) { const a = i / 30 * Math.PI * 2; this.particles.push({ x: p.cx, y: p.cy, vx: Math.cos(a) * 2.5, vy: Math.sin(a) * 2.5, life: 30, col: '#f2d040', size: 2 }); }
       }
       if (p.hp <= 0 || p.san <= 0) { p.hp = Math.max(0, p.hp); p.san = Math.max(0, p.san); this.die(); }
       if (p.san < p.maxSan * 0.3) {
@@ -401,6 +577,7 @@ class MissionScene {
         { label: '소지품', desc: '소모품 목록을 확인한다.', onSelect: () => this.showItems() },
         { label: '내 상태', desc: '능력치를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
         { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
+        { label: '상태 효과 안내', desc: '공포·패닉·희망 등 버프/디버프 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
         { label: '철수 (임무 포기)', col: '#ff8a8a', desc: '즉시 현장을 떠난다. 보수 없음, 신뢰 -5. 주운 아티팩트는 챙긴다.', onSelect: (m) => { m.close(); this.finish('retreat'); } },
       ],
     }));
@@ -432,13 +609,19 @@ class MissionScene {
           if (e.dead) continue;
           if (pr.layer !== 'any' && e.layer !== pr.layer) continue;
           if (pr.layer === 'any' && e.layer !== 'back') continue;
-          if (overlap(box, e)) { e.hurt(pr.dmg, sign(pr.vx) || 1, pr.kind === 'spray' ? 6 : 0); pr.life = 0; if (pr.kind === 'salt') this.saltBurst(pr); break; }
+          if (pr.pierce) { pr.hit = pr.hit || new Set(); if (pr.hit.has(e)) continue; }
+          if (overlap(box, e)) {
+            e.hurt(pr.dmg, sign(pr.vx) || 1, pr.kind === 'spray' ? 6 : 0);
+            if (pr.pierce) { pr.hit.add(e); continue; }
+            pr.life = 0; if (pr.kind === 'salt') this.saltBurst(pr); break;
+          }
         }
         if (pr.life > 0 && this.boss && !this.boss.dead && (pr.layer === 'back' || pr.layer === 'any') && overlap(box, this.boss.hitbox())) {
-          this.boss.hurt(pr.dmg, sign(pr.vx) || 1, false); pr.life = 0;
+          if (!(pr.pierce && pr.hitBoss)) { this.boss.hurt(pr.dmg * (1 + this.m.bossDmg), sign(pr.vx) || 1, false); pr.hitBoss = true; }
+          if (!pr.pierce) pr.life = 0;
         }
       } else if (pr.layer === p.layer && !p.dead) {
-        if (Math.hypot(pr.x - p.cx, pr.y - p.cy) < pr.r + 7) { if (p.hurt(pr.dmg, pr.san || 0, pr.x) !== null) pr.life = 0; }
+        if (Math.hypot(pr.x - p.cx, pr.y - p.cy) < pr.r + 7) { if (p.hurt(pr.dmg, pr.san || 0, pr.x)) this.applyHitEffect(pr.eff); pr.life = 0; }
       }
     }
     this.projectiles = this.projectiles.filter((pr) => pr.life > 0);
@@ -468,6 +651,7 @@ class MissionScene {
         case 'artifact': {
           const a = ARTIFACTS[k.id];
           this.run.found.push(k.id);
+          this.addHope(8);
           Sound.play('artifact');
           this.toast(`아티팩트 획득: ${a.name} [${RARITY[a.rarity].name}]`, RARITY[a.rarity].col);
           for (let i = 0; i < 20; i++) this.particles.push({ x: k.x + 7, y: k.by + 7, vx: rnd(-2, 2), vy: rnd(-2.5, 0.5), life: 30, col: RARITY[a.rarity].col, size: 2, g: 0.05 });
@@ -518,6 +702,7 @@ class MissionScene {
         if (o.type === 'cause') this.completeObjective('원인 해소 완료! 퇴근 문으로 →');
         else {
           this.objState.anchors++;
+          this.addHope(15, '앵커');
           Sound.play('anchor');
           Gfx.shake(3, 12);
           if (this.objState.anchors >= this.objState.anchorsTotal) this.completeObjective('안정화 완료! 퇴근 문으로 →');
@@ -623,7 +808,11 @@ class MissionScene {
       const x = Math.round(pr.x - cam.x), y = Math.round(pr.y - cam.y);
       if (pr.kind === 'spray') { ctx.fillStyle = '#9ae8ff'; ctx.fillRect(x - 1, y - 1, 3, 3); }
       else if (pr.kind === 'salt') { ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - 3, y - 3, 6, 6); ctx.fillStyle = '#f4f0e6'; ctx.fillRect(x - 2, y - 2, 4, 4); }
-      else if (pr.kind === 'wave') { ctx.fillStyle = pr.col; ctx.fillRect(x - 4, y - 6, 8, 12); ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 4, 2, 8); }
+      else if (pr.kind === 'rwave') {
+        ctx.fillStyle = '#ff9a3a';
+        for (let k = -6; k <= 6; k++) ctx.fillRect(x + Math.round(Math.cos(k / 6) * 4) * sign(pr.vx), y + k, 2, 1);
+        ctx.fillStyle = '#fff2c8'; ctx.fillRect(x - 1, y - 3, 2, 6);
+      } else if (pr.kind === 'wave') { ctx.fillStyle = pr.col; ctx.fillRect(x - 4, y - 6, 8, 12); ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 4, 2, 8); }
       else {
         ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - pr.r - 1, y - pr.r - 1, pr.r * 2 + 2, pr.r * 2 + 2);
         ctx.fillStyle = pr.col; ctx.fillRect(x - pr.r, y - pr.r, pr.r * 2, pr.r * 2);
@@ -834,6 +1023,25 @@ class MissionScene {
       ctx.fillStyle = L === 'back' ? `rgba(255,40,80,${0.25 * f})` : `rgba(255,255,255,${0.25 * f})`;
       ctx.fillRect(0, 0, VW, VH);
     }
+    // 패닉 / 희망 화면 효과
+    if (!p.dead && p.st.has('panic')) {
+      const a = 0.25 + Math.abs(Math.sin(this.time * 0.25)) * 0.25;
+      ctx.fillStyle = `rgba(255,30,60,${a * 0.35})`; ctx.fillRect(0, 0, VW, VH);
+      ctx.fillStyle = `rgba(255,30,60,${a})`;
+      ctx.fillRect(0, 0, VW, 4); ctx.fillRect(0, VH - 4, VW, 4); ctx.fillRect(0, 0, 4, VH); ctx.fillRect(VW - 4, 0, 4, VH);
+      if (this.time % 30 < 18) Gfx.text(ctx, '패닉', this.player.cx - this.cam.x, this.player.y - 30 - this.cam.y, '#ff3a5a', { align: 'center', bold: true });
+    } else if (!p.dead && this.frightened()) {
+      const g = ctx.createRadialGradient(VW / 2, VH / 2, 90, VW / 2, VH / 2, 230);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, `rgba(40,0,10,${0.25 + (p.fear - 50) / 200 + Math.sin(this.time * 0.15) * 0.05})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+    }
+    if (!p.dead && p.st.has('hope')) {
+      const g = ctx.createRadialGradient(VW / 2, VH / 2, 120, VW / 2, VH / 2, 240);
+      g.addColorStop(0, 'rgba(242,208,64,0)');
+      g.addColorStop(1, `rgba(242,208,64,${0.1 + Math.sin(this.time * 0.05) * 0.03})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+    }
     // 정신력 낮음 비네트
     const sanF = p.san / p.maxSan;
     if (sanF < 0.35 && !p.dead) {
@@ -852,20 +1060,36 @@ class MissionScene {
 
   drawHUD(ctx) {
     const p = this.player, s = this.s;
-    // 좌상단: 체력 / 정신력
-    Gfx.panel(ctx, 4, 4, 128, 38, { fill: 'rgba(10,9,16,0.8)', inner: false });
+    // 좌상단: 체력 / 정신력 / 공포
+    Gfx.panel(ctx, 4, 4, 128, 49, { fill: 'rgba(10,9,16,0.8)', inner: false });
     Gfx.text(ctx, 'HP', 9, 7, '#ff8a8a', { small: true });
     Gfx.bar(ctx, 28, 9, 76, 5, p.hp / p.maxHp, COL.hp);
     Gfx.text(ctx, String(Math.max(0, Math.ceil(p.hp))), 127, 7, COL.white, { small: true, align: 'right' });
     Gfx.text(ctx, 'SAN', 9, 18, '#b8acff', { small: true });
     Gfx.bar(ctx, 28, 20, 76, 5, p.san / p.maxSan, p.layer === 'back' && this.time % 40 < 20 ? '#b8a8ff' : COL.san);
     Gfx.text(ctx, String(Math.max(0, Math.ceil(p.san))), 127, 18, COL.white, { small: true, align: 'right' });
+    const panic = p.st.has('panic');
+    const fearCol = panic ? (this.time % 10 < 5 ? '#ff3a5a' : '#ffffff') : p.fear >= 50 ? '#ff6a3a' : '#c8803a';
+    Gfx.text(ctx, '공포', 9, 29, panic ? '#ff3a5a' : '#ffa86a', { small: true });
+    Gfx.bar(ctx, 28, 31, 76, 5, p.fear / 100, fearCol);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(66, 30, 1, 7);
+    Gfx.text(ctx, panic ? '!!' : String(Math.floor(p.fear)), 127, 29, panic ? '#ff3a5a' : COL.white, { small: true, align: 'right' });
     // 레이어 표시
     const back = p.layer === 'back';
-    Gfx.text(ctx, back ? '◆ 뒷면' : '◇ 표면', 9, 29, back ? '#ff5a8a' : '#f4f0e6', { small: true });
-    const cdF = 1 - p.flipCd / this.D.flipCd;
-    Gfx.bar(ctx, 52, 32, 28, 2, cdF, cdF >= 1 ? COL.yellow : COL.dark);
-    if (p.shield > 0) Gfx.text(ctx, '부적 ' + p.shield, 86, 29, '#f2d040', { small: true });
+    Gfx.text(ctx, back ? '◆ 뒷면' : '◇ 표면', 9, 40, back ? '#ff5a8a' : '#f4f0e6', { small: true });
+    const cdF = panic ? 0 : 1 - p.flipCd / this.D.flipCd;
+    Gfx.bar(ctx, 52, 43, 28, 2, cdF, cdF >= 1 ? COL.yellow : COL.dark);
+    // 상태 효과 칩 (좌하단, 소모품 칸 위)
+    let cx = 4, cy = VH - 38;
+    for (const c of this.statusChips()) {
+      const w = Gfx.measure(ctx, c.label, { small: true }) + 10;
+      if (cx + w > 132) { cx = 4; cy -= 15; }
+      const blink = c.id === 'panic' && this.time % 12 < 6;
+      Gfx.panel(ctx, cx, cy, w, 14, { fill: blink ? 'rgba(120,10,30,0.9)' : 'rgba(10,9,16,0.85)', edge: c.col, inner: false });
+      Gfx.text(ctx, c.label, cx + 5, cy + 1, c.col, { small: true });
+      if (c.frac != null) { ctx.fillStyle = c.col; ctx.fillRect(cx + 2, cy + 12, Math.round((w - 4) * clamp(c.frac, 0, 1)), 1); }
+      cx += w + 2;
+    }
     // 우상단: 목표
     const ob = OBJECTIVES[this.obj] || { name: '최종 결재', col: '#ff5a6a' };
     const otext = this.objText();
@@ -916,11 +1140,12 @@ class MissionScene {
       const a = clamp(this.hintT / 30, 0, 1);
       ctx.globalAlpha = a;
       const w = Math.min(VW - 20, Gfx.measure(ctx, this.hintText, { small: true }) + 24);
-      Gfx.panel(ctx, (VW - w) / 2, 46, w, 18, { edge: '#62d6e8', inner: false });
-      Gfx.text(ctx, this.hintText, VW / 2, 50, '#bff4ff', { align: 'center', small: true });
+      Gfx.panel(ctx, (VW - w) / 2, 58, w, 18, { edge: '#62d6e8', inner: false });
+      Gfx.text(ctx, this.hintText, VW / 2, 62, '#bff4ff', { align: 'center', small: true });
       ctx.globalAlpha = 1;
     }
   }
 }
 
+const STATUS_HELP_TEXT = '공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)';
 const CONTROLS_TEXT = '← →  이동        Z / Space  점프 (↓+점프: 발판 내려가기)\nX  공격            C  뒤집기 (표면 ↔ 뒷면)\n↑  조사 / 상호작용   V  소모품 사용   Q 또는 ↓+V  소모품 변경\nShift  대시 (능력 획득 시, 방향키 두 번도 가능)\nEsc  일시정지\n\n메뉴: 방향키 이동, Z/Enter 확인, X/Esc 취소\n허브: ↑ 건물 들어가기, V 휴대폰';

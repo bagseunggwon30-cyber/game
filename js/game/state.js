@@ -38,6 +38,8 @@ function newState() {
     record: { missions: 0, fails: 0, kills: 0 },
     lastRank: 0,
     pendingEvents: [],
+    sp: 1,
+    skills: ['core'],
   };
 }
 
@@ -54,21 +56,24 @@ function derive(s) {
   const absorbedLight = s.absorbed.reduce((a, id) => a + (ARTIFACTS[id].light || 0), 0);
   const contBonus = s.contamination >= 50 ? 1 : 0;
   const per = st.per + contBonus;
+  const m = skillMods(s);
   return {
-    maxHp: 60 + st.vit * 12 + gear('maxHp'),
-    maxSan: 60 + st.mnd * 12 + gear('maxSan'),
+    maxHp: 60 + st.vit * 12 + gear('maxHp') + m.maxHp,
+    maxSan: 60 + st.mnd * 12 + gear('maxSan') + m.maxSan,
     atkMul: 1 + 0.15 * (st.str - 1),
     speed: 1.8 + 0.08 * st.agi + gear('speed'),
     jumpV: 5.75 + 0.04 * st.agi,
     atkCdMul: Math.max(0.65, 1 - 0.035 * (st.agi - 1)),
-    light: 74 + per * 10 + gear('light') + absorbedLight,
-    drain: Math.max(0.55, 3.0 - 0.18 * per - 0.12 * st.mnd) * (1 - gear('drain')) * (1 - s.contamination * 0.003),
-    crit: 0.04 * per,
+    light: 74 + per * 10 + gear('light') + absorbedLight + m.light,
+    drain: Math.max(0.55, 3.0 - 0.18 * per - 0.12 * st.mnd) * (1 - gear('drain')) * (1 - s.contamination * 0.003) * (1 - m.drain),
+    crit: 0.04 * per + m.crit,
+    critMul: 1.8 + m.critDmg,
     luk: st.luk,
     per,
-    flipCd: s.abilities.quickflip ? 26 : 46,
+    flipCd: Math.round((s.abilities.quickflip ? 26 : 46) * (1 - m.flipCd)),
     weapon: WEAPONS[s.weapon],
     ab: s.abilities,
+    m,
   };
 }
 
@@ -100,6 +105,7 @@ function addTrust(s, n) {
   const after = rankIndex(s);
   if (after > s.lastRank) {
     s.statPoints += 2 * (after - s.lastRank);
+    s.sp = (s.sp || 0) + (after - s.lastRank);
     s.lastRank = after;
     return after;
   }
@@ -134,7 +140,7 @@ function absorbArtifact(s, id) {
   for (const k in a.eff) { s.stats[k] += a.eff[k]; got.push(`${STAT_INFO[k].name} +${a.eff[k]}`); }
   if (a.ability && !s.abilities[a.ability]) { s.abilities[a.ability] = true; got.push(`능력 [${ABILITIES[a.ability].name}]`); }
   if (a.light) got.push(`뒷면 시야 +${a.light}`);
-  addContamination(s, RARITY[a.rarity].cont);
+  addContamination(s, Math.round(RARITY[a.rarity].cont * (1 - skillMods(s).contAbs)));
   s.absorbed.push(id);
   return got;
 }
@@ -206,10 +212,10 @@ function advanceDay(s) {
     const chance = s.suspicion >= 90 ? 1 : (s.suspicion - 30) / 90;
     if (Math.random() < chance) {
       if (s.stash.length > 0) {
-        const n = s.stash.length;
-        const lost = s.stash.slice();
-        s.stash = [];
-        const fine = 40000 * n;
+        const half = skillMods(s).auditHalf;
+        const n = half ? Math.ceil(s.stash.length / 2) : s.stash.length;
+        const lost = s.stash.splice(0, n);
+        const fine = 40000 * n * (half ? 0.5 : 1);
         chargeMoney(s, fine);
         s.trust = Math.max(0, s.trust - 8);
         s.suspicion = 25;
