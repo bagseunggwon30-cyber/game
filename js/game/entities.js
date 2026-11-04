@@ -342,6 +342,51 @@ class Enemy {
         this.facing = sign(this.vx) || this.facing;
         break;
       }
+      case 'lunger': {
+        // 느릿느릿 다가오다가, 가까워지면 갑자기 덮친다
+        if (this.lungeT > 0) { this.lungeT--; this.vx = this.lungeDir * this.spd * 6; }
+        else {
+          const chase = aware && adx < 220 && Math.abs(dy) < 60;
+          this.vx = approach(this.vx, chase ? sign(dx) * this.spd : 0, 0.08);
+          if (chase && adx < 85 && Math.abs(dy) < 30 && this.cool <= 0 && this.onGround) { this.lungeT = 22; this.lungeDir = sign(dx) || 1; this.cool = 100; this.vy = -2; Sound.play('whisper'); }
+        }
+        if (this.cool > 0) this.cool--;
+        this.vy = Math.min(MAXFALL, this.vy + GRAV);
+        moveBody(this, lvl, this.layer);
+        if (this.hitWall) this.lungeT = 0;
+        this.facing = sign(this.vx) || this.facing;
+        break;
+      }
+      case 'dripper': {
+        // 천장 근처를 떠돌며 수액을 떨어뜨린다
+        const tx = aware && adx < 180 ? p.cx : this.homeX + Math.sin(this.t * 0.01) * 40;
+        this.vx = approach(this.vx, sign(tx - this.cx) * this.spd, 0.03);
+        this.vy = approach(this.vy, Math.sin(this.t * 0.04) * 0.3, 0.03);
+        this.x += this.vx; this.y += this.vy;
+        if (aware && adx < 40 && dy > 0 && --this.cool <= 0) {
+          this.cool = 110;
+          sc.projectiles.push({ x: this.cx, y: this.y + this.h, vx: 0, vy: 2.2, r: 3, dmg: this.dmg, san: 4, layer: this.layer, from: 'enemy', life: 140, col: '#c8ff6a', kind: 'eye', eff: 'erosion', grav: 0.05 });
+          Sound.play('eshoot');
+        }
+        this.facing = sign(this.vx) || this.facing;
+        break;
+      }
+      case 'sleeper': {
+        // 누워 있다가 가까이 오면 벌떡 일어난다
+        if (!this.awake) {
+          this.vy = Math.min(MAXFALL, this.vy + GRAV);
+          moveBody(this, lvl, this.layer);
+          if (sameLayer && adx < 60 && Math.abs(dy) < 40) { this.awake = true; this.vy = -3.5; Sound.play('whisper'); Gfx.shake(2, 8); sc.floatText(this.cx, this.y - 6, '…일어났다', '#ffb84a'); }
+          break;
+        }
+        const chase = aware && adx < 240 && Math.abs(dy) < 70;
+        this.vx = approach(this.vx, chase ? sign(dx) * this.spd * 1.2 : 0, 0.15);
+        this.vy = Math.min(MAXFALL, this.vy + GRAV);
+        moveBody(this, lvl, this.layer);
+        if (this.hitWall && this.onGround) this.vy = -5;
+        this.facing = sign(this.vx) || this.facing;
+        break;
+      }
       case 'wander': {
         // 웃는 손님: 천천히 서성일 뿐 (공격하면 안 된다)
         this.vx = approach(this.vx, this.dir * this.spd, 0.1);
@@ -424,11 +469,12 @@ class Enemy {
     }
     if (this.y > lvl.H * TS + 40) { this.dead = true; return; }
     // 접촉 피해
-    if (this.dmg > 0 && sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
+    if (this.dmg > 0 && !(this.def.ai === 'sleeper' && !this.awake) && sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
   }
 
   hurt(dmg, dir, stun = 0, crit = false) {
     const sc = this.sc;
+    if (this.def.ai === 'sleeper') this.awake = true;
     if (this.type === 'smiler') {
       // 웃는 손님을 공격했다 — 미소가 찢어진다
       this.dead = true;
@@ -471,7 +517,10 @@ class Enemy {
     const def = this.def;
     switch (def.sprite) {
       case 'noise': spr = SPR.noise[Math.floor(this.t / 4) % 4]; break;
-      case 'follower': case 'echo': case 'smiler': {
+      case 'sleeper':
+        if (!this.awake) { spr = SPR.sleeperLying; ox = -8; oy = this.h - 9; break; }
+        // falls through
+      case 'follower': case 'echo': case 'smiler': case 'patient': case 'tenant': {
         const set = SPR[def.sprite];
         const moving = Math.abs(this.vx) > 0.2;
         const fi = !this.onGround && def.sprite === 'follower' ? 6 : moving ? 2 + Math.floor(this.t / 7) % 4 : Math.floor(this.t / 30) % 2;
@@ -481,12 +530,15 @@ class Enemy {
       }
       case 'flyer': { const bl = this.t % 140; spr = SPR.flyer[bl < 6 ? 2 : bl < 10 ? 1 : 0]; break; }
       case 'notif': spr = SPR.notif[Math.floor(this.t / 8) % 2]; break;
+      case 'ivbag': spr = SPR.ivbag[Math.floor(this.t / 12) % 2]; break;
+      case 'steam': spr = SPR.steam[Math.floor(this.t / 9) % 3]; ox = -3; oy = -3; break;
+      case 'xmark': spr = SPR.xmark[this.t % 100 < 10 ? 1 : 0]; break;
       case 'watcher': spr = SPR.watcher[this.moving ? Math.floor(this.t / 5) % 2 : 0]; oy = -3; break;
       case 'crawler': spr = (this.facing < 0 ? SPR.crawlerL : SPR.crawler)[Math.floor(this.t / 6) % 2]; oy = -4; break;
       default: break;
     }
     if (!spr) return;
-    if (def.sprite === 'echo') ctx.globalAlpha = (ghost ? 0.3 : 1) * this.alpha;
+    if (def.sprite === 'echo' || def.sprite === 'tenant') ctx.globalAlpha = (ghost ? 0.3 : 1) * this.alpha;
     ctx.drawImage(spr, sx + ox, sy + oy);
     ctx.globalAlpha = 1;
     if (this.flash > 0) {
@@ -502,7 +554,8 @@ class Enemy {
 }
 
 // 적에게 닿았을 때 붙는 상태 이상
-const ENEMY_HIT_EFFECT = { noise: 'erosion', crawler: 'slow', watcher: 'terror', notif: 'fear', echo: 'erosion', follower: 'fear', flyer: 'erosion' };
+const ENEMY_HIT_EFFECT = { noise: 'erosion', crawler: 'slow', watcher: 'terror', notif: 'fear', echo: 'erosion', follower: 'fear', flyer: 'erosion',
+  patient: 'fear', ivbag: 'erosion', sleeper: 'terror', steam: 'slow', tenant: 'fear', xmark: 'erosion' };
 
 function makePickup(o) {
   return Object.assign({ w: 14, h: 14, t: Math.floor(Math.random() * 100), vy: 0, dead: false, by: o.y }, o);

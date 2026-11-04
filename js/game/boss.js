@@ -233,7 +233,7 @@ class Boss {
           this.pd.dir = Math.random() < 0.5 ? 1 : -1;
           this.hazards.push({ type: 'trainwarn', t: 80, dir: this.pd.dir });
           Sound.play('warn');
-          sc.toast('⚠ 열차가 진입합니다 — 위로 피하거나 표면으로!', '#3af0ff');
+          sc.toast(this.def.sweep === 'bulldozer' ? '⚠ 불도저가 밀고 들어온다 — 위로 피하거나 표면으로!' : '⚠ 열차가 진입합니다 — 위로 피하거나 표면으로!', this.def.sweep === 'bulldozer' ? '#ffb84a' : '#3af0ff');
         }
         if (pt === 80) {
           this.hazards.push({ type: 'train', x: this.pd.dir > 0 ? this.arena.x0 - 120 : this.arena.x1, dir: this.pd.dir, t: 999 });
@@ -305,6 +305,15 @@ class Boss {
         }
       } else if (h.type === 'train') {
         const x = Math.round(h.x - cam.x), y = Math.round(a.floorY - 40 - cam.y);
+        if (this.def.sweep === 'bulldozer') {
+          ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - 1, y + 7, 122, 34);
+          ctx.fillStyle = '#e8a030'; ctx.fillRect(x, y + 8, 120, 26);
+          ctx.fillStyle = '#2a2a30'; ctx.fillRect(x, y + 30, 120, 10);
+          for (let i = 0; i < 8; i++) { ctx.fillStyle = '#5a5a6a'; ctx.fillRect(x + 4 + i * 15, y + 32, 8, 6); }
+          ctx.fillStyle = '#9a9aaa'; ctx.fillRect(h.dir > 0 ? x + 112 : x - 8, y, 16, 40);
+          ctx.fillStyle = '#d8201a'; ctx.fillRect(x + 40, y + 14, 40, 3); ctx.fillRect(x + 58, y + 10, 3, 12);
+          continue;
+        }
         ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - 1, y - 1, 122, 42);
         ctx.fillStyle = '#1a4a5a'; ctx.fillRect(x, y, 120, 40);
         ctx.fillStyle = '#3af0ff'; ctx.fillRect(x, y + 26, 120, 3);

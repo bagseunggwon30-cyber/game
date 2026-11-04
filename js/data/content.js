@@ -43,6 +43,30 @@ const THEMES = {
     enemies: ['notif', 'noise', 'flyer', 'follower'],
     artifacts: ['unread', 'thumb', 'shadowA', 'tube'],
   },
+  hospital: {
+    name: '구 세림병원 별관', short: '병원', meme: 'm1004', boss: 'nurse',
+    front: { wall: '#c8d8d4', wall2: '#b8c8c4', trim: '#4a8a8a', floor: '#d8dcd4', floor2: '#b8bcb4', solid: '#7a8a88', solid2: '#6a7a78', plat: '#a8b8b4', barrier: '#4a8a8a', sky: '#101a1a' },
+    back: { wall: '#2a3a34', wall2: '#22302a', trim: '#6a1a1a', floor: '#3a4a40', floor2: '#2a3a30', solid: '#0e1612', solid2: '#0a100c', plat: '#4a6050', barrier: '#c8ff6a', sky: '#040806' },
+    decor: ['bed', 'ivstand', 'wheelchair', 'curtain', 'sign', 'window'],
+    enemies: ['patient', 'ivbag', 'follower', 'watcher'],
+    artifacts: ['callbell', 'wristband', 'thermo', 'nametag'],
+  },
+  sauna: {
+    name: '24시 황토 찜질방', short: '찜질방', meme: 'msauna', boss: 'sheep',
+    front: { wall: '#c8946a', wall2: '#b8845a', trim: '#8a4a2a', floor: '#d8b48a', floor2: '#b8946a', solid: '#7a5a3a', solid2: '#6a4a2a', plat: '#c8a47a', barrier: '#e8603a', sky: '#1a100a' },
+    back: { wall: '#3a1a10', wall2: '#2e140a', trim: '#7a2a0a', floor: '#5a2a14', floor2: '#46200e', solid: '#1a0a04', solid2: '#140802', plat: '#7a3a1a', barrier: '#ffb84a', sky: '#080402' },
+    decor: ['kiln', 'mats', 'tv', 'eggbasket', 'locker', 'plant'],
+    enemies: ['sleeper', 'steam', 'noise', 'crawler'],
+    artifacts: ['towel', 'egg', 'lockertag', 'umbrella'],
+  },
+  redev: {
+    name: '달동네 재개발 구역', short: '재개발', meme: 'mredev', boss: 'demolisher',
+    front: { wall: '#8a8478', wall2: '#7a7468', trim: '#c84a3a', floor: '#9a9488', floor2: '#7a7468', solid: '#5a544a', solid2: '#4a443a', plat: '#a89a88', barrier: '#e8c040', sky: '#14121a' },
+    back: { wall: '#2a1414', wall2: '#220e0e', trim: '#ff2a2a', floor: '#4a1e1a', floor2: '#381410', solid: '#140606', solid2: '#0e0404', plat: '#6a2a20', barrier: '#ff2a2a', sky: '#060202' },
+    decor: ['xwall', 'rubble', 'banner', 'fence', 'window', 'door'],
+    enemies: ['tenant', 'xmark', 'follower', 'watcher'],
+    artifacts: ['xspray', 'notice', 'doorplate', 'key'],
+  },
   hq: {
     name: '청명관리 본사', short: '본사', meme: 'mcheong', boss: 'suit',
     front: { wall: '#b8bcc4', wall2: '#a8acb4', trim: '#2b3d73', floor: '#6a6e7a', floor2: '#5a5e6a', solid: '#3a3e4a', solid2: '#30343e', plat: '#8a8e9a', barrier: '#2b3d73', sky: '#101420' },
@@ -52,11 +76,14 @@ const THEMES = {
     artifacts: ['frame', 'erased', 'mirror', 'key'],
   },
 };
-const REGULAR_THEMES = ['apartment', 'store', 'subway', 'school', 'pcbang'];
+const REGULAR_THEMES = ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev'];
 
 // 밈적 존재 (괴담)
 const MEMES = {
   m45: { name: '4.5층', desc: '엘리베이터에 없는 버튼을 누르면, 4층과 5층 사이의 복도에 도착한다는 이야기.' },
+  m1004: { name: '1004호 환자', desc: '4층이 없는 병원. 밤마다 존재하지 않는 1004호에서 호출 벨이 울린다. 간호사가 가면, 돌아오지 않는다.' },
+  msauna: { name: '수면실의 손님', desc: '찜질방 수면실에서 잠들면 옆자리에 누가 눕는다. 깨어나 보면, 내 자리에는 아직 내가 누워 있다.' },
+  mredev: { name: '빨간 X', desc: '철거 예정 집 벽에 칠해진 빨간 X. 그 표시가 붙은 집에서 아직도 밤마다 불이 켜진다.' },
   m3am: { name: '새벽 3시의 손님', desc: '새벽 3시에 들어오는 손님에게 영수증을 주면 안 된다. 그 손님은 영수증을 받아 간 사람의 하루를 계산한다.' },
   m0line: { name: '0호선', desc: '막차를 놓친 사람에게만 들리는 안내방송. "0호선 열차가 들어오고 있습니다."' },
   m13: { name: '13번째 계단', desc: '야자 시간에 본관 계단을 세면 12개가 아니라 13개다. 13번째 계단을 밟은 학생은 출석부에서 지워진다.' },
@@ -73,6 +100,12 @@ const ENEMIES = {
   notif: { name: '읽지 않은 알림', hp: 6, dmg: 6, san: 2, spd: 1.5, ai: 'swarm', w: 10, h: 10, layer: 'back', sprite: 'notif', score: 1, jam: 0.3 },
   watcher: { name: '등 뒤의 사람', hp: 34, dmg: 16, san: 8, spd: 2.4, ai: 'watcher', w: 10, h: 32, layer: 'back', sprite: 'watcher', score: 3 },
   crawler: { name: '기어다니는 손', hp: 10, dmg: 8, san: 1, spd: 1.6, ai: 'hopper', w: 12, h: 8, layer: 'back', sprite: 'crawler', score: 1 },
+  patient: { name: '맨발의 환자', hp: 26, dmg: 12, san: 3, spd: 0.6, ai: 'lunger', w: 10, h: 22, layer: 'back', sprite: 'patient', score: 2 },
+  ivbag: { name: '떠도는 링거', hp: 14, dmg: 6, san: 4, spd: 0.45, ai: 'dripper', w: 10, h: 14, layer: 'back', sprite: 'ivbag', score: 1 },
+  sleeper: { name: '수면실 손님', hp: 30, dmg: 13, san: 5, spd: 1.2, ai: 'sleeper', w: 10, h: 22, layer: 'back', sprite: 'sleeper', score: 2 },
+  steam: { name: '증기 그림자', hp: 16, dmg: 7, san: 3, spd: 0.7, ai: 'float', w: 14, h: 14, layer: 'back', sprite: 'steam', score: 1 },
+  tenant: { name: '떠나지 못한 세입자', hp: 22, dmg: 9, san: 6, spd: 0.55, ai: 'drift', w: 10, h: 22, layer: 'back', sprite: 'tenant', score: 2 },
+  xmark: { name: '빨간 X', hp: 18, dmg: 9, san: 3, spd: 0, ai: 'turret', w: 12, h: 12, layer: 'back', sprite: 'xmark', score: 1 },
   smiler: { name: '웃는 손님', hp: 20, dmg: 0, san: 0, spd: 0.35, ai: 'wander', w: 10, h: 22, layer: 'front', sprite: 'smiler', score: 0 },
   echo: { name: '잔향', hp: 12, dmg: 6, san: 4, spd: 0.5, ai: 'drift', w: 10, h: 22, layer: 'front', sprite: 'echo', score: 1 },
 };
@@ -85,6 +118,9 @@ const BOSSES = {
   clock: { name: '자율학습 감독', hp: 210, w: 22, h: 44, patterns: ['rain', 'dash', 'ring'], minion: 'crawler', color: '#c46cff', title: '말소 대상 · 13번째 계단', eff: 'slow' },
   monitor: { name: '웃는 썸네일', hp: 200, w: 36, h: 32, patterns: ['beam', 'summon', 'rain', 'hack'], minion: 'notif', color: '#f2f23a', title: '말소 대상 · 웃는 썸네일', flying: true, eff: 'erosion' },
   flyer: { name: '틈새 공고', hp: 300, w: 22, h: 46, patterns: ['spread', 'summon', 'teleport', 'rain', 'hack'], minion: 'follower', color: '#f2c230', title: '말소 대상 · 틈새 공고 (구 민재)', eff: 'erosion' },
+  nurse: { name: '야간 회진 수간호사', hp: 230, w: 22, h: 48, patterns: ['dash', 'spread', 'summon', 'rain'], minion: 'patient', color: '#c8ff6a', title: '말소 대상 · 1004호 환자', eff: 'erosion' },
+  sheep: { name: '양머리', hp: 260, w: 32, h: 44, patterns: ['slam', 'ring', 'summon', 'teleport'], minion: 'sleeper', color: '#ffb84a', title: '말소 대상 · 수면실의 손님', eff: 'slow' },
+  demolisher: { name: '철거반장', hp: 280, w: 26, h: 48, patterns: ['dash', 'slam', 'sweep', 'spread'], minion: 'tenant', color: '#ff4a2a', title: '말소 대상 · 빨간 X', eff: 'fear', sweep: 'bulldozer' },
   suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain', 'hack'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명', eff: 'terror' },
 };
 
@@ -107,6 +143,15 @@ const ARTIFACTS = {
   frame: { name: '빈 액자', icon: 'frame', rarity: 2, from: 'm45', eff: { vit: 1, mnd: 1, str: 1, agi: 1, per: 1, luk: 1 }, desc: '안에 들어 있던 사진이 사라졌다. 액자는 새 얼굴을 기다린다.' },
   erased: { name: '지워진 이름표', icon: 'erased', rarity: 2, from: 'm13', eff: { mnd: 2, per: 1 }, ability: 'sanLeech', desc: '출석부에서 찢겨 나온 이름. 지워진 자리에서 아직 누가 대답한다.' },
   mincard: { name: '민재의 명찰', icon: 'mincard', rarity: 2, from: 'mtteum', eff: { str: 2, vit: 1 }, story: true, desc: '"박민재 / 청명관리 현장지원". 뒷면에 볼펜으로 적혀 있다: "다 먹이지 마."' },
+  callbell: { name: '1004호 호출벨', icon: 'callbell', rarity: 1, from: 'm1004', eff: { per: 1, luk: 1 }, desc: '누르면 아무 데서도 아닌 곳에서 "네, 갑니다" 하는 대답이 들린다.' },
+  wristband: { name: '이름 없는 환자 팔찌', icon: 'wristband', rarity: 0, from: 'm1004', eff: { mnd: 1 }, desc: '병실 번호 칸에 1004라고 적혀 있다. 이름 칸은 비어 있다.' },
+  thermo: { name: '깨진 체온계', icon: 'thermo', rarity: 2, from: 'm1004', eff: { vit: 2, mnd: 1 }, desc: '눈금이 34도 아래로 떨어져 멈췄다. 쥐고 있으면 손이 차가워지고, 이상하게 덜 아프다.' },
+  towel: { name: '양머리 수건', icon: 'towel', rarity: 1, from: 'msauna', eff: { vit: 1, mnd: 1 }, desc: '정성껏 말아 놓은 양머리. 풀어 보면 안쪽에 머리카락이 아닌 무언가가 엉켜 있다.' },
+  egg: { name: '식지 않는 맥반석 달걀', icon: 'egg', rarity: 0, from: 'msauna', eff: { vit: 1 }, desc: '몇 시간이 지나도 따뜻하다. 깨뜨리면 안 될 것 같다.' },
+  lockertag: { name: '수면실 번호표', icon: 'lockertag', rarity: 0, from: 'msauna', eff: { luk: 1 }, desc: '번호가 0번이다. 0번 자리는 없다. 그런데 누군가 매일 밤 거기에 눕는다.' },
+  xspray: { name: '빨간 X 스프레이', icon: 'xspray', rarity: 0, from: 'mredev', eff: { str: 1 }, desc: '철거반이 쓰던 스프레이. 흔들면 아직 페인트 소리가 난다. 무엇에든 X를 칠할 수 있을 것 같다.' },
+  notice: { name: '철거 예고 딱지', icon: 'notice', rarity: 1, from: 'mredev', eff: { per: 1, luk: 1 }, desc: '"본 건물은 2월 30일 철거 예정입니다." 날짜 아래에 손글씨로 "아직 사람 있어요"라고 적혀 있다.' },
+  doorplate: { name: '무너진 집의 문패', icon: 'doorplate', rarity: 2, from: 'mredev', eff: { str: 1, vit: 1, agi: 1 }, desc: '집은 사라졌는데 문패만 남았다. 주인의 이름이 읽을 때마다 바뀐다.' },
   rulebook: { name: '근무 수칙서 원본', icon: 'rulebook', rarity: 1, from: 'm3am', eff: { per: 1 }, ability: 'ruleSense', story: true, desc: '여섯 번째 줄이 손톱으로 긁혀 있다. 들고 있으면 거짓 수칙이 붉게 번져 보인다.' },
   redknob: { name: '빨간 문고리', icon: 'redknob', rarity: 1, from: 'm45', eff: { luk: 2 }, story: true, desc: '존재하지 않는 101호의 문고리. 쥐고 있으면 "열지 말아야 할 문"이 먼저 보인다.' },
   silentrec: { name: '대답하지 않은 녹음기', icon: 'silentrec', rarity: 2, from: 'msmile', eff: { mnd: 2, per: 1 }, story: true, desc: '마지막 방송의 녹음본. 재생하면 누군가 이름을 부르고, 아무도 대답하지 않는다.' },
@@ -192,12 +237,18 @@ const JOB_TITLES = {
   store: ['새벽 3시마다 계산대에 영수증이 쌓임', '냉장고 안쪽에서 누가 문을 두드림', '아무도 없는데 "어서오세요"가 계속 울림', '바코드가 찍히지 않는 손님 목격담'],
   subway: ['막차 이후 안내방송이 계속 나옴', '노선도에 없는 승강장 목격 신고', '환승 통로가 끝나지 않는다는 제보', '스크린도어 너머에서 손을 흔드는 사람'],
   school: ['폐교 본관 계단 개수가 맞지 않음', '야간 경비원이 출석 부르는 소리를 들음', '사물함이 안쪽에서 잠김', '교실 거울에 수업 중인 학생들이 비침'],
+  hospital: ['존재하지 않는 1004호에서 호출 벨', '별관 4층 버튼이 눌린 채 엘리베이터가 멈춤', '야간 회진 기록에 퇴원한 환자가 계속 등장', '빈 병실 침대가 매일 아침 정돈되어 있음'],
+  sauna: ['수면실에서 잠든 손님의 자리가 두 개', '불가마 안에서 노크 소리', '양머리를 한 손님이 탈의실을 나가지 않음', '0번 사물함 열쇠가 매일 반납됨'],
+  redev: ['철거된 집에 밤마다 불이 켜짐', '빨간 X가 하루에 하나씩 늘어남', '이사 간 세입자가 아직 문을 두드림', '철거반 장비가 밤사이 혼자 움직임'],
   hq: ['청명 지점 사무동 야간 점검', '복사기가 밤새 같은 공고를 출력함', '결재 서류에 존재하지 않는 도장', '사내 방송에서 박수 소리만 나옴'],
   pcbang: ['특정 썸네일을 본 손님들이 계속 웃음', '꺼진 모니터에서 알림음이 울림', '빈자리에서 키보드 소리가 남', '"읽지 않음 1"이 사라지지 않는다는 제보'],
 };
 
 // 단서 / 원인 문구
 const CLUE_TEXT = {
+  hospital: ['간호사실 호출판. 1004호 램프만 계속 깜빡인다.', '퇴원 서류 뭉치. 퇴원일이 전부 2월 30일이다.', '인터넷 괴담 글: "세림병원 4층 가 본 사람? 거기 1004호 있음"', '수액 거치대에 걸린 이름표: "다음 차례: (빈칸)"'],
+  sauna: ['수면실 이용 명부. 같은 이름이 매일 밤 두 번씩 적혀 있다.', '불가마 문틈의 손자국. 안쪽에서 민 자국이다.', 'SNS 게시물: "찜질방에서 잠들었는데 내가 나를 내려다봄" 공유 4,102회', '양머리 수건 더미 속에서 아직 따뜻한 머리카락.'],
+  redev: ['철거 대상 목록. 지워진 주소 옆에 누군가 "아직 살아요"라고 써 놓았다.', '벽에 칠해진 빨간 X 위로, 안쪽에서 긁은 자국이 겹쳐 있다.', '부동산 단톡방: "그 동네 X 집에서 불 켜진 거 봤다는 사람 많음"', '마지막 세입자의 장부. 월세 입금일이 아직도 매달 찍혀 있다.'],
   apartment: ['엘리베이터 패널에 매직으로 그린 "4.5" 버튼. 덧칠한 흔적이 수십 겹이다.', '주민 단톡방 캡처: "4.5층 가 본 사람? ㅋㅋ 진짜 있대"', '복도 벽의 낙서: "여기서부터 세지 마시오"', '관리비 고지서. 존재하지 않는 호수가 인쇄되어 있다.'],
   store: ['계산대 밑의 영수증 뭉치. 전부 03:00:00에 발행됐다.', '야간 근무 인수인계 노트: "3시 손님한텐 절대 영수증 주지 말 것"', 'SNS 게시물: "새벽 3시 편의점 괴담 진짜임?" 공유 2,431회', '포스기 화면에 찍힌 상품명: "당신의 오늘"'],
   subway: ['안내방송 녹음 파일. 노선 번호 자리만 지직거린다.', '노선도 스티커. 누군가 0호선을 손으로 그려 넣었다.', '커뮤니티 글: "막차 놓치면 0호선 탄다는 썰" 조회수 9만', '분실물 보관함 속 승차권 묶음. 전부 행선지가 비어 있다.'],
@@ -211,6 +262,9 @@ const CAUSE_TEXT = {
   subway: '선로 위에 놓인 낡은 스피커. 아무것도 연결되지 않았는데 안내방송이 흘러나온다.',
   school: '계단 맨 위, 존재하지 않는 13번째 칸. 그 위에 출석부 한 권이 펼쳐져 있다.',
   pcbang: '한 자리의 모니터만 켜져 있다. 화면 속 얼굴이 당신을 보고 웃는다.',
+  hospital: '존재하지 않는 1004호. 빈 침대 위에서 호출 벨이 혼자 울리고 있다.',
+  sauna: '수면실 한가운데, 0번 자리. 누군가 누워 있던 자국이 아직 따뜻하다.',
+  redev: '골목 끝 마지막 집. 벽의 빨간 X가 심장처럼 맥박 치고, 창문에서 불빛이 새어 나온다.',
   hq: '거대한 결재함. 안에서 수많은 목소리가 "승인"이라고 속삭인다.',
 };
 
@@ -297,6 +351,12 @@ const RULE_SCENES = {
     intro: '막차가 끊긴 역사 순찰. 안내판 뒤에 코팅된 수칙표가 붙어 있다.' },
   school: { title: '[꿀알바] 구 한별고 야간 경비 (수칙 준수 필수)', pool: ['noLookBack', 'noAnswer', 'stopAt3', 'flicker', 'stayFront', 'noRedDoor'],
     intro: '폐교 야간 경비. 경비실 책상 위에 누렇게 바랜 수칙표가 있다.' },
+  hospital: { title: '[꿀알바] 세림병원 별관 야간 보조 — 의료 지식 불필요', pool: ['noAnswer', 'flicker', 'noLookBack', 'stopAt3', 'noRedDoor', 'stayFront'],
+    intro: '병원 별관 야간 보조. 간호사실 모니터 옆에 코팅된 수칙표가 붙어 있다. 맨 아래에 "1004호 호출에는 응답하지 마세요"라는 손글씨.' },
+  sauna: { title: '[꿀알바] 24시 찜질방 수면실 관리', pool: ['greet', 'noAnswer', 'flicker', 'noHitSmile', 'stopAt3', 'stayFront'],
+    intro: '찜질방 수면실 야간 관리. 카운터 서랍 안에 땀에 젖은 수칙표가 들어 있다.' },
+  redev: { title: '[꿀알바] 재개발 구역 야간 경비 — 일당 즉시 지급', pool: ['noLookBack', 'noAnswer', 'noRedDoor', 'stopAt3', 'flicker', 'stayFront'],
+    intro: '철거 예정 구역 야간 경비. 컨테이너 초소 벽에 매직으로 쓴 수칙표가 있다.' },
   pcbang: { title: '[꿀알바] 별빛PC방 야간 카운터 — 시급 3배', pool: ['greet', 'noHitSmile', 'flicker', 'noAnswer', 'stayFront', 'stopAt3'],
     intro: 'PC방 야간 카운터. 모니터 옆에 손글씨 수칙표가 테이프로 붙어 있다.' },
 };

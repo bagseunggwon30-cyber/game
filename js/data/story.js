@@ -57,11 +57,11 @@ const CHAPTERS = [
   { n: 1, title: '수습 기간', sub: '이상한 알바를 시작했다', rent: 200000, themes: ['apartment', 'store', 'subway'], diff: [1, 2], intro: [] },
   { n: 2, title: '신호 불량', sub: '화면이 거짓말을 하기 시작했다', rent: 260000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang'], diff: [2, 3],
     intro: [['seo', '하람 씨, 수습 기간 끝났어요. 이제 정식 알바예요.'], ['seo', '요즘 현장에서 휴대폰이 이상해진다는 보고가 늘었어요. 화면만 믿지 마세요.']] },
-  { n: 3, title: '틈새', sub: '사라진 사람이 공고가 되었다', rent: 330000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang'], diff: [3, 4],
+  { n: 3, title: '틈새', sub: '사라진 사람이 공고가 되었다', rent: 330000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna'], diff: [3, 4],
     intro: [['', '민재의 번호는 아직 연락처에 남아 있다. 메시지 옆의 "1"은 사라지지 않는다.'], ['noeul', '...틈새 앱, 요즘 공고가 이상하게 많지 않아요?']] },
-  { n: 4, title: '배양실', sub: '치우는 곳이 아니라, 키우는 곳', rent: 400000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hq'], diff: [4, 5],
+  { n: 4, title: '배양실', sub: '치우는 곳이 아니라, 키우는 곳', rent: 400000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'hq'], diff: [4, 5],
     intro: [['seo', '현장 조장 승진 축하해요. 이제부터는... 보이는 게 많아질 거예요.'], ['seo', '보인다고 다 말할 필요는 없어요.']] },
-  { n: 5, title: '청명', sub: '모두가 믿는 이야기', rent: 480000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hq'], diff: [5, 5],
+  { n: 5, title: '청명', sub: '모두가 믿는 이야기', rent: 480000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'hq'], diff: [5, 5],
     intro: [['', '틈새 앱에 알림이 하나 떴다. 발신: 청명관리 본사.'], ['phone', '【청명관리(주)】 정규직 전환 면접 안내 — 장소: 본사 (뒷면)']] },
 ];
 

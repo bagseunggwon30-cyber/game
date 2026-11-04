@@ -167,14 +167,27 @@ const DECOR_DRAW = {
   vending(c, G) { G.px(c, 0, 0, 24, 40, '#c83a3a'); G.px(c, 3, 3, 18, 22, '#e8f0f8'); for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) G.px(c, 4 + i * 4, 5 + j * 7, 3, 5, ['#3ad0a0', '#f2c230', '#5a7dff', '#f4f0e6'][(i + j) % 4]); G.px(c, 6, 30, 12, 4, '#2a2a30'); },
   cubicle(c, G) { G.px(c, 0, 8, 44, 26, '#8a8e9a'); G.px(c, 0, 8, 44, 2, '#5a5e6a'); G.px(c, 14, 0, 16, 10, '#1a1a24'); G.px(c, 16, 2, 12, 6, '#62a0d8'); },
   cooler(c, G) { G.px(c, 2, 0, 12, 12, '#a8d8f8'); G.px(c, 0, 12, 16, 24, '#e8e8ec'); G.px(c, 4, 18, 3, 2, '#5a7dff'); G.px(c, 9, 18, 3, 2, '#e5383b'); },
+  bed(c, G) { G.px(c, 0, 10, 40, 6, '#c8d0d0'); G.px(c, 0, 6, 12, 5, '#f4f8f4'); G.px(c, 10, 8, 28, 3, '#9ab8c8'); G.px(c, 2, 16, 2, 6, '#7a8a88'); G.px(c, 36, 16, 2, 6, '#7a8a88'); G.px(c, 0, 2, 3, 14, '#a8b4b4'); },
+  ivstand(c, G) { G.px(c, 7, 2, 2, 36, '#8a8a9a'); G.px(c, 3, 2, 10, 2, '#8a8a9a'); G.px(c, 3, 5, 6, 8, '#d8f0e8'); G.px(c, 4, 9, 4, 4, '#c8ff6a'); G.px(c, 2, 37, 12, 2, '#5a5a6a'); },
+  wheelchair(c, G) { G.circle(c, 9, 16, 7, '#3a3a48'); G.circle(c, 9, 16, 5, '#c8ccd8'); G.circle(c, 9, 16, 1, '#3a3a48'); G.px(c, 4, 6, 14, 3, '#3a6a8a'); G.px(c, 16, 0, 3, 10, '#5a5a6a'); G.px(c, 20, 18, 3, 3, '#3a3a48'); },
+  curtain(c, G) { G.px(c, 0, 0, 30, 2, '#8a8a9a'); for (let i = 0; i < 6; i++) G.px(c, i * 5, 2, 4, 34, i % 2 ? '#a8d0c8' : '#98c0b8'); },
+  kiln(c, G) { G.circle(c, 18, 18, 17, '#7a4a2a'); G.circle(c, 18, 20, 11, '#2a1408'); G.px(c, 10, 22, 16, 14, '#2a1408'); G.px(c, 13, 26, 10, 2, '#ff8a3a'); G.px(c, 14, 2, 8, 4, '#5a3a1a'); },
+  mats(c, G) { for (let i = 0; i < 3; i++) { G.px(c, i * 15, 4 - i, 14, 4, ['#4a8ac8', '#c84a6a', '#4ac88a'][i]); G.px(c, i * 15, 3 - i, 14, 1, '#f4f0e6'); } },
+  tv(c, G) { G.px(c, 0, 0, 34, 20, '#1a1a24'); G.px(c, 2, 2, 30, 15, '#3a6a9a'); G.px(c, 6, 6, 10, 6, '#f2c230'); G.px(c, 20, 5, 9, 2, '#f4f0e6'); G.px(c, 14, 20, 6, 3, '#3a3a48'); },
+  eggbasket(c, G) { G.px(c, 2, 8, 22, 8, '#a87a4a'); G.px(c, 2, 8, 22, 2, '#c89a6a'); for (let i = 0; i < 5; i++) G.circle(c, 5 + i * 4, 6, 2, '#8a5a3a'); },
+  xwall(c, G) { G.px(c, 0, 0, 36, 30, '#9a8a78'); for (let j = 0; j < 5; j++) G.px(c, 0, j * 6, 36, 1, '#7a6a58'); G.line(c, 6, 4, 30, 26, '#d8201a', 3); G.line(c, 30, 4, 6, 26, '#d8201a', 3); },
+  rubble(c, G) { G.px(c, 2, 10, 30, 6, '#6a645a'); G.px(c, 6, 6, 8, 5, '#8a8478'); G.px(c, 18, 4, 10, 7, '#7a7468'); G.line(c, 10, 2, 24, 8, '#5a5a6a', 2); G.px(c, 26, 12, 4, 4, '#c84a3a'); },
+  banner(c, G) { G.px(c, 0, 0, 48, 14, '#f2e6c0'); G.px(c, 2, 2, 44, 10, '#d8201a'); G.px(c, 6, 5, 12, 4, '#f4f0e6'); G.px(c, 22, 5, 20, 4, '#f4f0e6'); },
+  fence(c, G) { G.px(c, 0, 4, 40, 2, '#c8a040'); G.px(c, 0, 12, 40, 2, '#c8a040'); for (let i = 0; i < 5; i++) G.px(c, i * 9 + 2, 0, 3, 22, '#e8c040'); for (let i = 0; i < 4; i++) G.line(c, i * 9 + 4, 4, i * 9 + 11, 12, '#1a1a20'); },
   cctv(c, G) { G.px(c, 0, 0, 4, 4, '#5a5a6a'); G.px(c, 2, 3, 14, 7, '#c8ccd8'); G.px(c, 14, 5, 3, 3, '#e5383b'); },
 };
+const DECOR_SIZES_EXTRA = { bed: [40, 22], ivstand: [14, 39], wheelchair: [24, 24], curtain: [30, 36], kiln: [36, 36], mats: [44, 8], tv: [34, 23], eggbasket: [26, 16], xwall: [36, 30], rubble: [34, 16], banner: [48, 14], fence: [40, 22] };
 const DecorCache = {};
 function decorSprite(type, layer) {
   const k = type + ':' + layer;
   if (DecorCache[k]) return DecorCache[k];
   const sizes = { door: [24, 34], extinguisher: [16, 22], sign: [22, 10], window: [28, 22], mailbox: [26, 18], plant: [18, 26], shelf: [34, 36], fridge: [30, 38], counter: [40, 26], poster: [16, 22], atm: [20, 34], pillar: [20, 60], bench: [36, 16], map: [40, 24], screen: [34, 16], locker: [33, 38], board: [48, 26], clock: [15, 15], trophy: [26, 28], pc: [38, 34], vending: [24, 40], cubicle: [44, 34], cooler: [16, 36], cctv: [17, 10] };
-  const [w, h] = sizes[type];
+  const [w, h] = sizes[type] || DECOR_SIZES_EXTRA[type];
   let cv = Gfx.sprite(w + 2, h + 2, (c) => { c.translate(1, 1); DECOR_DRAW[type](c, Gfx); });
   if (layer === 'back') {
     cv = Gfx.tint(cv, '#1a0008', 0.62);
@@ -190,7 +203,7 @@ function decorSprite(type, layer) {
   return cv;
 }
 // 소품을 걸어 둘 높이 (바닥 기준 위로)
-const DECOR_Y = { sign: 52, window: 50, poster: 40, map: 46, screen: 60, board: 48, clock: 58, cctv: 70, extinguisher: 22, mailbox: 30 };
+const DECOR_Y = { sign: 52, window: 50, poster: 40, map: 46, screen: 60, board: 48, clock: 58, cctv: 70, extinguisher: 22, mailbox: 30, tv: 56, banner: 58, xwall: 44 };
 
 // ───────────── 절차 생성 ─────────────
 function generateMission(spec) {

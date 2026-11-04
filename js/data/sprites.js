@@ -192,6 +192,33 @@ function buildEnemySprites() {
   }, { outlineColor: '#3a1a1a' }));
   SPR.crawlerL = SPR.crawler.map((f) => G.flipH(f));
 
+  // 병원: 맨발의 환자 / 떠도는 링거
+  SPR.patient = buildHumanSet({ hair: '#2a2a2a', skin: '#d8dcd0', skinShade: '#b4b8ac', eye: '#0b0b10', shirt: '#9ab8c8', vest: '#9ab8c8', vestDark: '#7a98a8', strip: '#c8d8e0', pants: '#9ab8c8', pantsDark: '#7a98a8', shoes: '#d8dcd0' }, { cap: false, vest: false }, '#1a2a2a');
+  SPR.ivbag = [0, 1].map((f) => G.sprite(14, 18, (c) => {
+    G.px(c, 6, 0, 2, 2, '#8a8a9a');
+    G.px(c, 3, 2, 8, 9, '#d8f0e8'); G.px(c, 4, 5 + f, 6, 5 - f, '#c8ff6a');
+    G.px(c, 5, 4, 1, 1, '#0b0b10'); G.px(c, 8, 4, 1, 1, '#0b0b10');
+    G.px(c, 6, 11, 2, 2, '#8a8a9a'); G.line(c, 7, 13, 7 + (f ? 2 : -2), 17, '#c8d8d0');
+  }, { outlineColor: '#1a2a20' }));
+  // 찜질방: 수면실 손님 (누워 있다가 일어남) / 증기 그림자
+  SPR.sleeper = buildHumanSet({ hair: '#1a1410', skin: '#e8c8a8', skinShade: '#c8a888', eye: '#0b0b10', shirt: '#e8803a', vest: '#e8803a', vestDark: '#c8602a', strip: '#f0a060', pants: '#e8803a', pantsDark: '#c8602a', shoes: '#e8c8a8' }, { cap: false, vest: false }, '#3a1a0a');
+  SPR.sleeperLying = G.sprite(26, 10, (c) => {
+    G.px(c, 2, 3, 18, 5, '#e8803a'); G.px(c, 19, 2, 5, 6, '#e8c8a8'); G.px(c, 21, 1, 4, 3, '#1a1410');
+    G.px(c, 22, 4, 1, 1, '#0b0b10'); G.px(c, 1, 4, 3, 3, '#e8c8a8'); G.px(c, 6, 2, 10, 1, '#f0a060');
+  }, { outlineColor: '#3a1a0a' });
+  SPR.steam = [0, 1, 2].map((f) => G.sprite(18, 18, (c) => {
+    const r = new RNG(9 + f);
+    for (let i = 0; i < 6; i++) G.circle(c, 9 + r.range(-4, 4), 9 + r.range(-4, 4), r.int(2, 4), i % 2 ? '#f4f0e6' : '#c8c4b8');
+    G.px(c, 6, 8, 2, 2, '#3a1a0a'); G.px(c, 11, 8, 2, 2, '#3a1a0a'); G.px(c, 8, 12, 3, 1, '#3a1a0a');
+  }, { outlineColor: '#5a4a3a' }));
+  // 재개발: 떠나지 못한 세입자 / 빨간 X
+  SPR.tenant = buildHumanSet({ hair: '#c8c8c8', skin: '#b8b4ac', skinShade: '#9a968e', eye: '#2a0a0a', shirt: '#5a5448', vest: '#5a5448', vestDark: '#4a443a', strip: '#7a7468', pants: '#3a3a40', pantsDark: '#2a2a30', shoes: '#2a2420' }, { cap: false, vest: false }, '#2a1010');
+  SPR.xmark = [0, 1].map((f) => G.sprite(16, 16, (c) => {
+    G.px(c, 1, 1, 14, 14, '#7a7468');
+    G.line(c, 3, 3, 12, 12, '#d8201a', 2); G.line(c, 12, 3, 3, 12, '#d8201a', 2);
+    if (f) { G.px(c, 7, 7, 2, 2, '#fff2c8'); G.px(c, 3, 13, 1, 2, '#d8201a'); }
+  }, { outlineColor: '#1a0a0a' }));
+
   // 플레이어 / NPC
   SPR.player = buildHumanSet(PAL.player);
   SPR.seo = buildHumanSet(PAL.seo, { cap: false, vest: false, glasses: true, hairLong: true, tie: '#7a1e2e' });
@@ -300,6 +327,44 @@ function buildBossSprites() {
     G.line(c, 11, 16, 3, 32 + f, '#6d7386', 3);
     G.line(c, 26, 16, 34, 30 - f, '#6d7386', 3);
   }));
+  // 야간 회진 수간호사 : 링거대를 끄는 키 큰 간호사
+  SPR.boss.nurse = [0, 1, 2].map((f) => G.sprite(40, 54, (c) => {
+    G.px(c, 13, 14, 14, 26, '#e8f0ec'); G.px(c, 13, 26, 14, 2, '#c8d8d0');
+    G.px(c, 15, 40, 4, 13, '#d8dcd0'); G.px(c, 21, 40, 4, 13, '#d8dcd0');
+    G.px(c, 14, 3, 12, 11, '#d8dcd0'); G.px(c, 14, 1, 12, 4, '#f4f8f4'); G.px(c, 18, 1, 4, 2, '#c41e3a');
+    G.px(c, 15, 9, 10, 4, '#a8c8c0'); G.px(c, 16, 6, 2, 2, '#0b0b10'); G.px(c, 22, 6, 2, 2, '#0b0b10');
+    G.line(c, 13, 16, 4, 30 + f, '#e8f0ec', 3);
+    G.line(c, 26, 16, 32, 28, '#e8f0ec', 3);
+    G.px(c, 33, 4, 2, 48, '#8a8a9a'); G.px(c, 30, 4, 8, 2, '#8a8a9a');
+    G.px(c, 30, 7, 6, 9, '#d8f0e8'); G.px(c, 31, 10 + f, 4, 6 - f, '#c8ff6a');
+    G.px(c, 2, 30 + f, 3, 6, '#c8d8d0'); G.px(c, 3, 36 + f, 1, 4, '#8a8a9a');
+  }));
+  // 양머리 : 수건 양머리를 한 거대한 손님
+  SPR.boss.sheep = [0, 1, 2].map((f) => G.sprite(46, 50, (c) => {
+    G.px(c, 12, 18, 22, 22, '#e8803a'); G.px(c, 12, 18, 22, 3, '#f0a060');
+    G.px(c, 14, 40, 6, 9, '#e8803a'); G.px(c, 26, 40, 6, 9, '#e8803a');
+    G.circle(c, 23, 10, 10, '#f4f0e6');
+    G.circle(c, 13, 8, 5, '#f4f0e6'); G.circle(c, 33, 8, 5, '#f4f0e6');
+    G.ring(c, 13, 8, 3, '#c8c4b8'); G.ring(c, 33, 8, 3, '#c8c4b8');
+    G.px(c, 17, 11, 12, 7, '#e8c8a8');
+    G.px(c, 19, 13, 2, 2 - (f === 1 ? 1 : 0), '#0b0b10'); G.px(c, 25, 13, 2, 2 - (f === 1 ? 1 : 0), '#0b0b10');
+    G.px(c, 20, 16, 6, 1, '#7a2a1a');
+    G.line(c, 12, 21, 3, 34 + f, '#e8c8a8', 3);
+    G.line(c, 33, 21, 42, 32 - f, '#e8c8a8', 3);
+    G.circle(c, 42, 33 - f, 3, '#f4f0e6');
+  }));
+  // 철거반장 : 안전모 + 쇠지렛대 팔
+  SPR.boss.demolisher = [0, 1, 2].map((f) => G.sprite(42, 54, (c) => {
+    G.px(c, 13, 16, 16, 24, '#e8a030'); G.px(c, 15, 16, 12, 24, '#3a3a40');
+    G.line(c, 16, 22, 25, 31, '#d8201a', 2); G.line(c, 25, 22, 16, 31, '#d8201a', 2);
+    G.px(c, 14, 40, 5, 13, '#2a2a30'); G.px(c, 23, 40, 5, 13, '#2a2a30');
+    G.px(c, 15, 5, 12, 10, '#9a8a78'); G.px(c, 13, 2, 16, 5, '#f2c230'); G.px(c, 12, 6, 18, 2, '#f2c230');
+    G.px(c, 17, 9, 3, 2, '#ff2a2a'); G.px(c, 23, 9, 3, 2, '#ff2a2a');
+    G.line(c, 13, 18, 5, 30, '#9a8a78', 3);
+    G.line(c, 28, 18, 36, 26, '#9a8a78', 3);
+    G.line(c, 36, 26, 40, 6 + f * 3, '#5a5a6a', 3); G.px(c, 37, 4 + f * 3, 5, 3, '#5a5a6a');
+    G.px(c, 2, 29, 6, 4, '#d8201a');
+  }));
   // 청명 : 도장 머리 정장
   SPR.boss.suit = [0, 1, 2].map((f) => G.sprite(52, 66, (c) => {
     G.px(c, 14, 22, 24, 30, '#14141c');
@@ -392,6 +457,15 @@ const ICON_DRAW = {
   frame(c, G) { G.px(c, 1, 1, 12, 12, '#a8783a'); G.px(c, 3, 3, 8, 8, '#0b0b10'); G.px(c, 5, 6, 1, 1, '#ff3a5a'); G.px(c, 8, 6, 1, 1, '#ff3a5a'); },
   erased(c, G) { G.px(c, 2, 3, 10, 8, '#f4f0e6'); G.px(c, 2, 3, 10, 2, '#5a5a6a'); for (let i = 0; i < 6; i++) G.px(c, 3 + i, 6 + (i % 2), 1, 1, '#ff3a5a'); G.px(c, 3, 9, 8, 1, '#c8c4b4'); },
   mincard(c, G) { G.px(c, 2, 3, 10, 8, '#f4f0e6'); G.px(c, 2, 3, 10, 2, '#f2c230'); G.px(c, 3, 6, 3, 3, '#e8d8a0'); G.px(c, 7, 7, 4, 1, '#3a3a48'); },
+  callbell(c, G) { G.px(c, 3, 8, 8, 4, '#c8ccd8'); G.circle(c, 7, 7, 3, '#e5383b'); G.px(c, 6, 5, 2, 1, '#ff9a9a'); G.px(c, 2, 12, 10, 1, '#8a8a9a'); },
+  wristband(c, G) { G.ring(c, 7, 7, 5, '#e8f0ec'); G.ring(c, 7, 7, 4, '#e8f0ec'); G.px(c, 4, 2, 6, 3, '#f4f8f4'); G.px(c, 5, 3, 4, 1, '#3a3a48'); },
+  thermo(c, G) { G.line(c, 3, 11, 10, 2, '#e8f0f8', 2); G.px(c, 2, 10, 3, 3, '#3a6ad8'); G.px(c, 7, 5, 2, 1, '#0b0b10'); G.px(c, 9, 2, 2, 2, '#c8ccd8'); },
+  towel(c, G) { G.circle(c, 7, 7, 4, '#f4f0e6'); G.circle(c, 3, 5, 2, '#f4f0e6'); G.circle(c, 11, 5, 2, '#f4f0e6'); G.ring(c, 3, 5, 1, '#c8c4b8'); G.ring(c, 11, 5, 1, '#c8c4b8'); G.px(c, 5, 8, 4, 3, '#e8c8a8'); },
+  egg(c, G) { G.circle(c, 7, 7, 4, '#8a5a3a'); G.px(c, 5, 4, 3, 2, '#b88a5a'); G.px(c, 9, 7, 1, 1, '#5a3a2a'); G.px(c, 4, 12, 7, 1, '#d8b48a'); },
+  lockertag(c, G) { G.px(c, 3, 2, 8, 10, '#e8803a'); G.circle(c, 7, 4, 1, '#3a1a0a'); G.px(c, 5, 7, 4, 3, '#f4f0e6'); G.px(c, 6, 8, 2, 1, '#0b0b10'); },
+  xspray(c, G) { G.px(c, 4, 4, 6, 9, '#c8ccd8'); G.px(c, 4, 6, 6, 4, '#d8201a'); G.px(c, 5, 2, 4, 2, '#5a5a6a'); G.px(c, 9, 1, 3, 1, '#d8201a'); },
+  notice(c, G) { G.px(c, 1, 2, 12, 10, '#f2e6c0'); G.px(c, 2, 3, 10, 2, '#d8201a'); G.px(c, 3, 7, 8, 1, '#5a5a6a'); G.px(c, 3, 9, 6, 1, '#5a5a6a'); },
+  doorplate(c, G) { G.px(c, 1, 4, 12, 6, '#6a4a2a'); G.px(c, 2, 5, 10, 4, '#d8c8a0'); G.px(c, 4, 6, 6, 1, '#3a3a48'); G.line(c, 9, 4, 12, 10, '#2a1a10'); },
   rulebook(c, G) { G.px(c, 3, 1, 9, 12, '#ece4c8'); for (let i = 0; i < 5; i++) G.px(c, 4, 3 + i * 2, 6 - (i % 2), 1, '#5a5a6a'); G.line(c, 4, 12, 10, 10, '#c41e3a'); G.px(c, 3, 1, 9, 1, '#a8885a'); },
   redknob(c, G) { G.circle(c, 6, 6, 4, '#c41e3a'); G.px(c, 5, 5, 2, 2, '#ff8a8a'); G.px(c, 9, 6, 4, 2, '#8a8a9a'); G.px(c, 12, 5, 1, 4, '#6a6a7a'); },
   silentrec(c, G) { G.px(c, 2, 3, 10, 8, '#2a2a34'); G.px(c, 3, 4, 8, 3, '#c8c4b4'); G.circle(c, 4, 9, 1, '#e5383b'); G.px(c, 8, 8, 3, 2, '#5a5a6a'); },
