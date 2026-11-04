@@ -2,6 +2,7 @@
 // ───────────────────────── 영구 상태 / 파생 능력치 / 일과 ─────────────────────────
 const SAVE_KEY = 'backside_parttimer_save_v1';
 const ENDINGS_KEY = 'backside_parttimer_endings_v1';
+const NG_KEY = 'backside_parttimer_ngplus_v1';
 const RENT_CYCLE = 7;
 
 function newState() {
@@ -50,7 +51,44 @@ function newState() {
     sideDay: {},
     rentDiscount: 0,
     rentMul: 1,
+    cycle: 1,
+    codex: { enemy: {}, boss: {}, art: {}, meme: {}, place: {} },
+    codexClaimed: [],
   };
+}
+
+// ── 회차 (재계약) ──
+// 엔딩 뒤 다음 회차로 이어지는 것: 마음 지도, 무기와 강화, 가방, 장비, 도감
+function makeCarry(s) {
+  return {
+    cycle: (s.cycle || 1) + 1,
+    skills: s.skills.slice(), sp: s.sp || 0,
+    weapons: s.weapons.slice(), weapon: s.weapon, weaponLv: Object.assign({}, s.weaponLv || {}),
+    bagLv: s.bagLv || 0, gear: s.gear.slice(),
+    codex: JSON.parse(JSON.stringify(s.codex || {})), codexClaimed: (s.codexClaimed || []).slice(),
+    money: Math.min(300000, Math.round((s.money || 0) * 0.1 / 1000) * 1000),
+  };
+}
+function saveCarry(s) { Storage.set(NG_KEY, makeCarry(s)); }
+function loadCarry() { return Storage.get(NG_KEY) || null; }
+function newStateFrom(carry) {
+  const s = newState();
+  if (!carry) return s;
+  Object.assign(s, {
+    cycle: carry.cycle, skills: carry.skills, sp: carry.sp, weapons: carry.weapons, weapon: carry.weapon,
+    weaponLv: carry.weaponLv, bagLv: carry.bagLv, gear: carry.gear, codexClaimed: carry.codexClaimed || [],
+  });
+  s.codex = Object.assign(newState().codex, carry.codex || {});
+  s.money += carry.money || 0;
+  return s;
+}
+// 회차가 오를수록 뒷면이 단단해진다 (3회차까지)
+function ngMul(s) { return 1 + 0.2 * Math.min(2, ((s && s.cycle) || 1) - 1); }
+function ngPayMul(s) { return 1 + 0.1 * Math.min(2, ((s && s.cycle) || 1) - 1); }
+function truthList(s) { return (s && s.cycle >= 2) ? TRUTH_ORDER.concat(NG_TRUTHS) : TRUTH_ORDER; }
+function trueEndReady(s) {
+  return s.cycle >= 2 && NG_TRUTHS.every((t) => s.truths.includes(t)) && s.truths.length >= TRUE_END_TRUTHS &&
+    s.sideDone.includes('A3') && s.sideDone.includes('C3');
 }
 
 // ── 메인 의뢰 / 챕터 ──

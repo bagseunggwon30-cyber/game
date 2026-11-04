@@ -516,8 +516,8 @@ function generateMission(spec) {
       out.pickups.push({ type: 'item', id: rng.pick(['drink', 'candy', 'gimbap', 'salt', 'charm', 'candy']), x: wx(s.x) + 1, y: wx(s.gy) - 16, layer: s.layer });
     }
     // 문서 (진실 조각)
-    const docId = spec.doc || spec.randomDoc;
-    if (docId) {
+    for (const docId of [spec.doc || spec.randomDoc, spec.doc2]) {
+      if (!docId) continue;
       const s = takeSpot('ground', 'front');
       if (s) out.interacts.push({ type: 'doc', id: docId, x: wx(s.x), y: wx(s.gy) - 14, w: 16, h: 14, layer: 'front' });
     }

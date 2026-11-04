@@ -2,12 +2,16 @@
 // ───────────────────────── 타이틀 / 스토리 / 결과 / 엔딩 씬 ─────────────────────────
 
 function drawCityBG(ctx, t, back) {
+  const dawn = back === 'dawn';
+  if (dawn) back = false;
   const g = ctx.createLinearGradient(0, 0, 0, VH);
-  if (back) { g.addColorStop(0, '#120006'); g.addColorStop(1, '#3a0a18'); }
+  if (dawn) { g.addColorStop(0, '#1a2050'); g.addColorStop(0.55, '#c86a5a'); g.addColorStop(0.8, '#f2b860'); }
+  else if (back) { g.addColorStop(0, '#120006'); g.addColorStop(1, '#3a0a18'); }
   else { g.addColorStop(0, '#05060f'); g.addColorStop(1, '#1e1e40'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
   const r = new RNG(9);
-  for (let i = 0; i < 60; i++) { ctx.fillStyle = back ? '#ff3a5a' : '#8a8ab8'; ctx.fillRect(r.int(0, VW), r.int(0, 100), 1, 1); }
+  if (dawn) { ctx.globalAlpha = 0.5; Gfx.circle(ctx, VW / 2, 182, 30, '#ffe0a0'); ctx.globalAlpha = 1; }
+  else for (let i = 0; i < 60; i++) { ctx.fillStyle = back ? '#ff3a5a' : '#8a8ab8'; ctx.fillRect(r.int(0, VW), r.int(0, 100), 1, 1); }
   for (let layer = 0; layer < 2; layer++) {
     const rr = new RNG(20 + layer);
     const speed = layer ? 0.3 : 0.12;
@@ -17,10 +21,10 @@ function drawCityBG(ctx, t, back) {
       let x = (i * 34 - t * speed) % (40 * 34);
       if (x < -50) x += 40 * 34;
       if (x > VW + 10) continue;
-      ctx.fillStyle = back ? (layer ? '#1a0008' : '#2a0612') : (layer ? '#0a0a1c' : '#14142c');
+      ctx.fillStyle = dawn ? (layer ? '#1a1428' : '#3a2a40') : back ? (layer ? '#1a0008' : '#2a0612') : (layer ? '#0a0a1c' : '#14142c');
       ctx.fillRect(Math.round(x), base - h, w, h + 40);
       for (let wy = base - h + 4; wy < base - 4; wy += 7) for (let wx = 3; wx < w - 3; wx += 6) {
-        if (rr.chance(0.3)) { ctx.fillStyle = back ? (rr.chance(0.5) ? '#ff2a4a' : '#f4f0e6') : '#f2d070'; ctx.fillRect(Math.round(x + wx), wy, 2, 3); }
+        if (rr.chance(dawn ? 0.12 : 0.3)) { ctx.fillStyle = back ? (rr.chance(0.5) ? '#ff2a4a' : '#f4f0e6') : '#f2d070'; ctx.fillRect(Math.round(x + wx), wy, 2, 3); }
       }
     }
   }
@@ -47,28 +51,28 @@ class TitleScene {
         ] }));
       } else this.newGame();
     } });
-    items.push({ label: '조작법', desc: '키보드 / 터치 조작 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) });
-    items.push({ label: '엔딩 기록', desc: '지금까지 본 결말', onSelect: () => {
-      const seen = endingsSeen();
-      const all = ['hire', 'expose', 'merge', 'quit', 'dissolve'];
-      Game.push(new TextView('엔딩 기록 ' + seen.length + '/' + all.length, all.map((k) => (seen.includes(k) ? '◆ ' + ENDINGS[k].name : '◇ ???')).join('\n')));
+    const carry = loadCarry();
+    if (carry) items.push({ label: `재계약 (${carry.cycle}회차)`, desc: '마음 지도·무기·가방·도감을 이어받는 다음 회차.', onSelect: () => {
+      if (has) {
+        Game.push(new Menu({ title: `저장 기록을 지우고 ${carry.cycle}회차를 시작할까?`, w: 270, items: [
+          { label: '재계약한다', onSelect: () => this.newGame(carry) },
+          { label: '취소', onSelect: (m) => m.close() },
+        ] }));
+      } else this.newGame(carry);
     } });
-    this.menu = new Menu({ items, y: 124, dim: false, onCancel: false, plain: true });
+    items.push({ label: '설정 · 조작법', desc: '소리 · 화면 흔들림 · 깜빡임 줄이기 · 글자 속도 · 조작 안내', onSelect: () => openSettings() });
+    items.push({ label: '엔딩 기록', desc: '지금까지 본 결말과 힌트', onSelect: () => {
+      const seen = endingsSeen();
+      const all = ENDING_ORDER;
+      Game.push(new TextView('엔딩 기록 ' + all.filter((k) => seen.includes(k)).length + '/' + all.length,
+        all.map((k) => (seen.includes(k) ? '◆ ' + ENDINGS[k].name + (ENDINGS[k].trueEnd ? '  (TRUE)' : '') : '◇ ??? — ' + ENDING_HINTS[k])).join('\n')));
+    } });
+    this.menu = new Menu({ items, y: 113, rh: 15, dim: false, onCancel: false, plain: true });
     Game.push(this.menu);
   }
-  newGame() {
+  newGame(carry) {
     Game.modals = [];
-    Game.state = newState();
-    Game.state.jobs = genJobs(Game.state);
-    Storage.del(SAVE_KEY);
-    Game.fadeTo(() => {
-      Game.setScene(new StoryScene(PROLOGUE, (i) => (i >= 7 ? 'office' : 'room'), () => {
-        const job = storyJobFor(Game.state);
-        Game.fadeTo(() => Game.setScene(new MissionScene(job)));
-      }));
-      Game.state.chapterSeen = 1;
-      Game.push(new ChapterCard(CHAPTERS[0]));
-    }, 30);
+    Game.fadeTo(() => startGame(carry || null), 30);
   }
   continueGame() {
     const s = loadGame();
@@ -85,19 +89,36 @@ class TitleScene {
   draw(ctx) {
     this.t2 = (this.t2 || 0) + 1;
     const cyc = this.t % 300;
-    const back = cyc > 250 && cyc < 290 && (cyc % 8 < 6);
+    const back = cyc > 250 && cyc < 290 && (Settings.calm || cyc % 8 < 6);
     drawCityBG(ctx, this.t, back);
     const tt = back ? this.titleB : this.title;
-    const x = Math.round((VW - tt.width) / 2), y = 34;
-    if (back) { ctx.globalAlpha = 0.5; ctx.drawImage(this.title, x + rndi(-3, 3), y + rndi(-2, 2)); ctx.globalAlpha = 1; }
+    const x = Math.round((VW - tt.width) / 2), y = 28;
+    if (back && !Settings.calm) { ctx.globalAlpha = 0.5; ctx.drawImage(this.title, x + rndi(-3, 3), y + rndi(-2, 2)); ctx.globalAlpha = 1; }
     ctx.drawImage(tt, x, y);
-    Gfx.text(ctx, 'BACKSIDE PART-TIMER', VW / 2, 90, back ? '#ff8a9a' : COL.yellow, { align: 'center', small: true });
-    Gfx.text(ctx, '— 밈적 존재 현장 정리 · 일급 ₩120,000 —', VW / 2, 104, COL.dim, { align: 'center', small: true });
+    Gfx.text(ctx, 'BACKSIDE PART-TIMER', VW / 2, 83, back ? '#ff8a9a' : COL.yellow, { align: 'center', small: true });
+    Gfx.text(ctx, '— 밈적 존재 현장 정리 · 일급 ₩120,000 —', VW / 2, 96, COL.dim, { align: 'center', small: true });
     // 플레이어 실루엣
     const f = SPR.player.R[2 + Math.floor(this.t / 7) % 4];
     ctx.drawImage(back ? SPR.follower.R[2 + Math.floor(this.t / 7) % 4] : f, 40, 166);
-    Gfx.text(ctx, 'v1.0', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+    Gfx.text(ctx, 'v1.1', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+    const seenN = endingsSeen().length;
+    if (seenN) Gfx.text(ctx, `결말 ${ENDING_ORDER.filter((k) => endingsSeen().includes(k)).length}/${ENDING_ORDER.length}`, 6, 4, COL.dim, { small: true });
   }
+}
+
+// 새 게임 / 재계약 시작 (페이드 콜백 안에서 호출)
+function startGame(carry) {
+  Game.modals = [];
+  Game.state = newStateFrom(carry);
+  Game.state.jobs = genJobs(Game.state);
+  Storage.del(SAVE_KEY);
+  const ng = !!carry;
+  Game.setScene(new StoryScene(ng ? PROLOGUE_NG : PROLOGUE, (i) => (i >= (ng ? 5 : 7) ? 'office' : 'room'), () => {
+    const job = storyJobFor(Game.state);
+    Game.fadeTo(() => Game.setScene(new MissionScene(job)));
+  }));
+  Game.state.chapterSeen = 1;
+  Game.push(new ChapterCard(ng ? Object.assign({}, CHAPTERS[0], { sub: `${carry.cycle}회차 — 재계약` }) : CHAPTERS[0]));
 }
 
 // 챕터 타이틀 카드
@@ -182,7 +203,7 @@ class ResultScene {
     Sound.setAmbience('hubnight');
     const outro = this.result === 'success' ? ((this.story && this.story.outro) || (this.side && this.side.outro)) : null;
     if (outro && outro.length) Game.push(new DialogModal(outro));
-    if (this.result === 'success' && this.side && this.side.reward.artifact) this.arts.push(this.side.reward.artifact);
+    if (this.result === 'success' && this.side && this.side.reward.artifact) { this.arts.push(this.side.reward.artifact); codexAdd(this.s, 'art', this.side.reward.artifact); }
     Sound.play(this.result === 'success' || this.result === 'extract' ? 'resolve' : 'deny');
   }
   applyBase() {
@@ -202,7 +223,7 @@ class ResultScene {
       const full = this.result === 'success';
       const payMul = deep ? 0.35 + 0.3 * deep.cleared + (full ? 0.3 : 0) : 1;
       const wm = s.weekMod === 'raise' ? 1.25 : s.weekMod === 'quiet' ? 0.9 : 1;
-      let pay = Math.round(job.pay * payMul * wm / 1000) * 1000;
+      let pay = Math.round(job.pay * payMul * wm * ngPayMul(s) / 1000) * 1000;
       const noDmg = run.damage === 0;
       if (noDmg) pay = Math.round(pay * 1.1);
       const perfect = full && run.ruleViol === 0;
@@ -222,6 +243,7 @@ class ResultScene {
       s.weekStats = s.weekStats || { missions: 0 };
       s.weekStats.missions++;
       this.log.push(['주간 목표', `${s.weekStats.missions}/${WEEK_QUOTA}`, s.weekStats.missions >= WEEK_QUOTA ? COL.green : COL.dim]);
+      if (full && job.obj !== 'patrol') codexAdd(s, 'meme', THEMES[job.theme].meme);
       if (this.story && full) {
         s.storyStage++;
         s.lastStoryDay = s.day;
@@ -390,31 +412,42 @@ class EndingScene {
   constructor(key) { this.key = key; this.e = ENDINGS[key]; this.t = 0; this.phase = 'talk'; }
   enter() {
     recordEnding(this.key);
-    Sound.setAmbience(this.key === 'merge' || this.key === 'dissolve' ? 'back' : 'title');
+    if (Game.state) saveCarry(Game.state);
+    Sound.setAmbience(this.key === 'merge' || this.key === 'dissolve' ? 'back' : this.key === 'true' ? 'dawn' : 'title');
     Game.push(new DialogModal(this.e.lines, () => { this.phase = 'title'; this.t = 0; Sound.play('resolve'); }));
   }
   update() {
     this.t++;
     if (this.phase === 'title' && this.t > 60 && (Input.pressed('confirm') || Input.pressed('cancel'))) {
-      this.phase = 'done';
-      Game.fadeTo(() => Game.setScene(new TitleScene()), 40);
+      this.phase = 'menu';
+      const carry = loadCarry();
+      Game.push(new Menu({
+        title: '다음', w: 240, desc: true, onCancel: false, block: 10,
+        items: [
+          { label: `재계약 (${carry ? carry.cycle : 2}회차)`, desc: '마음 지도·무기·가방·도감을 이어받고 처음부터. 2회차부터만 찾을 수 있는 문서와 결말이 있다.', onSelect: (m) => {
+            m.close(); this.phase = 'done';
+            Game.fadeTo(() => startGame(loadCarry()), 40);
+          } },
+          { label: '타이틀로', desc: '타이틀 화면의 "재계약"으로 언제든 다음 회차를 시작할 수 있다.', onSelect: (m) => { m.close(); this.phase = 'done'; Game.fadeTo(() => Game.setScene(new TitleScene()), 40); } },
+        ],
+      }));
     }
   }
   draw(ctx) {
     const back = this.key === 'merge' || this.key === 'dissolve';
-    drawCityBG(ctx, this.t * 0.5, back);
-    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, VW, VH);
+    drawCityBG(ctx, this.t * 0.5, this.key === 'true' ? 'dawn' : back);
+    ctx.fillStyle = this.key === 'true' ? 'rgba(10,6,20,0.3)' : 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, VW, VH);
     if (this.phase !== 'talk') {
       const a = clamp(this.t / 60, 0, 1);
       ctx.globalAlpha = a;
-      Gfx.text(ctx, 'ENDING', VW / 2, 60, COL.dim, { align: 'center', small: true });
+      Gfx.text(ctx, this.e.trueEnd ? 'TRUE ENDING' : 'ENDING', VW / 2, 60, this.e.trueEnd ? COL.yellow : COL.dim, { align: 'center', small: true });
       if (!this.big) this.big = Gfx.bigText(this.e.name, this.e.col, 3);
       ctx.drawImage(this.big, Math.round((VW - this.big.width) / 2), 74);
       const seen = endingsSeen();
-      Gfx.text(ctx, `결말 수집 ${seen.length}/5`, VW / 2, 130, COL.white, { align: 'center' });
+      Gfx.text(ctx, `결말 수집 ${ENDING_ORDER.filter((k) => seen.includes(k)).length}/${ENDING_ORDER.length}`, VW / 2, 130, COL.white, { align: 'center' });
       const s = Game.state;
-      if (s) Gfx.text(ctx, `DAY ${s.day} · 임무 ${s.record.missions} · 흡수 ${s.absorbed.length} · 제출 ${s.submitted} · 진실 ${s.truths.length}/${TRUTH_ORDER.length}`, VW / 2, 148, COL.dim, { align: 'center', small: true });
-      if (this.t > 60 && Math.floor(this.t / 20) % 2 === 0) Gfx.text(ctx, 'Z 타이틀로', VW / 2, 180, COL.yellow, { align: 'center', small: true });
+      if (s) Gfx.text(ctx, `${s.cycle || 1}회차 · DAY ${s.day} · 임무 ${s.record.missions} · 흡수 ${s.absorbed.length} · 제출 ${s.submitted} · 진실 ${s.truths.length}/${truthList(s).length}`, VW / 2, 148, COL.dim, { align: 'center', small: true });
+      if (this.phase === 'title' && this.t > 60 && Math.floor(this.t / 20) % 2 === 0) Gfx.text(ctx, 'Z 계속', VW / 2, 180, COL.yellow, { align: 'center', small: true });
       ctx.globalAlpha = 1;
     }
   }

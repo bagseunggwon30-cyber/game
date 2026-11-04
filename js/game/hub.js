@@ -233,8 +233,8 @@ class HubScene {
     if (night) { ctx.fillStyle = 'rgba(10,10,40,0.25)'; ctx.fillRect(0, 0, VW, VH); }
     // 오염 글리치
     if (this.glitch > 0) {
-      ctx.fillStyle = 'rgba(120,0,30,0.35)'; ctx.fillRect(0, 0, VW, VH);
-      for (let i = 0; i < 3; i++) { const y = rndi(0, VH); ctx.drawImage(Gfx.buf, 0, y, VW, 6, rndi(-10, 10), y, VW, 6); }
+      ctx.fillStyle = Settings.calm ? 'rgba(120,0,30,0.15)' : 'rgba(120,0,30,0.35)'; ctx.fillRect(0, 0, VW, VH);
+      for (let i = 0; i < (Settings.calm ? 0 : 3); i++) { const y = rndi(0, VH); ctx.drawImage(Gfx.buf, 0, y, VW, 6, rndi(-10, 10), y, VW, 6); }
     }
     // 안내
     if (this.prompt && !Game.modals.length) {
@@ -301,10 +301,11 @@ class HubScene {
     Game.push(new PhoneHome([
       { name: '틈새', icon: 'jobs', desc: '오늘 지원할 수 있는 알바 목록.', open: () => this.openJobs() },
       { name: '메시지', icon: 'msg', badge: unreadCount(s) || null, desc: '받은 메시지.', open: () => this.openMessages() },
-      { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/${TRUTH_ORDER.length} — 현장에서 모은 문서.`, open: () => this.openTruths() },
+      { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/${truthList(s).length} — 현장에서 모은 문서.`, open: () => this.openTruths() },
       { name: '마음 지도', icon: 'mind', badge: s.sp || null, desc: '스킬트리. 마음 조각(SP)으로 노드를 해금한다.', open: () => Game.push(new SkillTreeView(s)) },
       { name: '내 상태', icon: 'status', desc: '능력치 · 능력 · 장비.', open: () => Game.push(new StatusView(s)) },
-      { name: '설정', icon: 'settings', desc: '소리, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
+      { name: '도감', icon: 'codex', badge: codexClaimable(s) ? '!' : null, desc: `현장 기록 ${codexCount(s)}/${codexTotal()} — 마주친 존재, 아티팩트, 밈, 장소.`, open: () => openCodex(s) },
+      { name: '설정', icon: 'settings', desc: '환경 설정, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
     ], night ? '23:40' : '09:12', `DAY ${s.day} · ${night ? '밤' : '낮'}`));
   }
 
@@ -313,8 +314,8 @@ class HubScene {
     Game.push(new Menu({
       title: '설정', phone: true, phoneTime: this.phoneTime(), desc: true, appCol: '#9a98b0',
       refresh: () => [
-        { label: Sound.muted ? '소리 켜기' : '소리 끄기', desc: '사운드를 전환한다.', onSelect: () => Sound.toggleMute() },
-        { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
+        { label: '환경 설정', desc: '음량 · 화면 흔들림 · 깜빡임 줄이기 · 글자 속도', onSelect: () => openSettings() },
+        { label: '조작법', desc: '키보드 / 게임패드 / 터치', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
         { label: '상태 효과 안내', desc: '공포·패닉·희망 등 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
         { label: '저장하고 타이틀로', desc: '진행 상황을 저장하고 타이틀 화면으로 돌아간다.', onSelect: () => { Game.modals = []; saveGame(s); Game.fadeTo(() => Game.setScene(new TitleScene())); } },
       ],
@@ -381,13 +382,13 @@ class HubScene {
   openTruths() {
     const s = this.s;
     Game.push(new Menu({
-      title: '메모 · 진실 조각', titleRight: s.truths.length + '/' + TRUTH_ORDER.length, desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#e8e0c8',
-      items: TRUTH_ORDER.map((id, i) => {
+      title: '메모 · 진실 조각', titleRight: s.truths.length + '/' + truthList(s).length, desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#e8e0c8',
+      items: truthList(s).map((id, i) => {
         const has = s.truths.includes(id);
         return {
           label: has ? `${i + 1}. ${TRUTHS[id].title}` : `${i + 1}. ???`,
           disabled: !has,
-          desc: has ? TRUTHS[id].text.split('\n')[0] : '현장에서 문서를 찾거나, 누군가와 거래해 얻을 수 있다.',
+          desc: has ? TRUTHS[id].text.split('\n')[0] : NG_TRUTHS.includes(id) ? '재계약 이후에만 보이는 문서. 메인 의뢰 현장 어딘가에 있다.' : '현장에서 문서를 찾거나, 누군가와 거래해 얻을 수 있다.',
           onSelect: () => Game.push(new TextView(TRUTHS[id].title, TRUTHS[id].text, null, { paper: true })),
         };
       }),
@@ -516,7 +517,7 @@ class HubScene {
               const t = infoPool()[0];
               s.truths.push(t);
               saveGame(s);
-              Game.push(new DialogModal([['noeul', '...좋아요. 이건 내가 도망칠 때 들고 나온 거예요.']], () => Game.push(new TextView(TRUTHS[t].title, TRUTHS[t].text + `\n\n[진실 조각 획득 ${s.truths.length}/${TRUTH_ORDER.length}]`, null, { paper: true }))));
+              Game.push(new DialogModal([['noeul', '...좋아요. 이건 내가 도망칠 때 들고 나온 거예요.']], () => Game.push(new TextView(TRUTHS[t].title, TRUTHS[t].text + `\n\n[진실 조각 획득 ${s.truths.length}/${truthList(s).length}]`, null, { paper: true }))));
             } })),
           }));
         } },

@@ -122,6 +122,7 @@ const BOSSES = {
   sheep: { name: '양머리', hp: 260, w: 32, h: 44, patterns: ['slam', 'ring', 'summon', 'teleport'], minion: 'sleeper', color: '#ffb84a', title: '말소 대상 · 수면실의 손님', eff: 'slow' },
   demolisher: { name: '철거반장', hp: 280, w: 26, h: 48, patterns: ['dash', 'slam', 'sweep', 'spread'], minion: 'tenant', color: '#ff4a2a', title: '말소 대상 · 빨간 X', eff: 'fear', sweep: 'bulldozer' },
   suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain', 'hack'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명', eff: 'terror' },
+  nameless: { name: '무명(無名)', hp: 420, w: 30, h: 58, patterns: ['spread', 'summon', 'teleport', 'ring', 'rain', 'beam'], minion: 'echo', color: '#e8e0c8', title: '퇴근하지 못한 이름들', eff: 'erosion', flying: false },
 };
 
 // 아티팩트: rarity 0=흔함 1=희귀 2=이상

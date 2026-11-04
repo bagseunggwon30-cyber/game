@@ -1,22 +1,24 @@
 'use strict';
-// ───────────────────────── 입력 (키보드 + 터치) ─────────────────────────
+// ───────────────────────── 입력 (키보드 + 게임패드 + 터치) ─────────────────────────
 const KEYMAP = {
-  left: ['ArrowLeft', 'KeyA', 'T_left'],
-  right: ['ArrowRight', 'KeyD', 'T_right'],
-  up: ['ArrowUp', 'KeyW', 'T_up'],
-  down: ['ArrowDown', 'KeyS', 'T_down'],
-  jump: ['KeyZ', 'Space', 'T_a'],
-  attack: ['KeyX', 'KeyJ', 'T_b'],
-  flip: ['KeyC', 'KeyK', 'T_c'],
-  item: ['KeyV', 'KeyL', 'T_d'],
-  cycle: ['KeyQ', 'Tab'],
-  dash: ['ShiftLeft', 'ShiftRight'],
-  interact: ['ArrowUp', 'KeyW', 'KeyE', 'T_up'],
-  confirm: ['KeyZ', 'Enter', 'Space', 'KeyE', 'T_a'],
-  cancel: ['KeyX', 'Escape', 'Backspace', 'T_b'],
-  pause: ['Escape', 'KeyP', 'T_pause'],
-  phone: ['KeyV', 'KeyQ', 'Tab', 'T_d'],
+  left: ['ArrowLeft', 'KeyA', 'T_left', 'G_left'],
+  right: ['ArrowRight', 'KeyD', 'T_right', 'G_right'],
+  up: ['ArrowUp', 'KeyW', 'T_up', 'G_up'],
+  down: ['ArrowDown', 'KeyS', 'T_down', 'G_down'],
+  jump: ['KeyZ', 'Space', 'T_a', 'G_a'],
+  attack: ['KeyX', 'KeyJ', 'T_b', 'G_x'],
+  flip: ['KeyC', 'KeyK', 'T_c', 'G_y'],
+  item: ['KeyV', 'KeyL', 'T_d', 'G_rb'],
+  cycle: ['KeyQ', 'Tab', 'G_lb'],
+  dash: ['ShiftLeft', 'ShiftRight', 'G_b', 'G_lt', 'G_rt'],
+  interact: ['ArrowUp', 'KeyW', 'KeyE', 'T_up', 'G_up'],
+  confirm: ['KeyZ', 'Enter', 'Space', 'KeyE', 'T_a', 'G_a'],
+  cancel: ['KeyX', 'Escape', 'Backspace', 'T_b', 'G_b'],
+  pause: ['Escape', 'KeyP', 'T_pause', 'G_start'],
+  phone: ['KeyV', 'KeyQ', 'Tab', 'T_d', 'G_select', 'G_rb'],
 };
+// 표준 배치 게임패드 버튼 번호 → 코드
+const PAD_BUTTONS = { 0: 'G_a', 1: 'G_b', 2: 'G_x', 3: 'G_y', 4: 'G_lb', 5: 'G_rb', 6: 'G_lt', 7: 'G_rt', 8: 'G_select', 9: 'G_start', 12: 'G_up', 13: 'G_down', 14: 'G_left', 15: 'G_right' };
 
 const Input = {
   keys: new Set(),        // 현재 눌린 키 코드
@@ -28,6 +30,8 @@ const Input = {
   frame: 0,
   anyKeyFresh: false,
   touchEnabled: false,
+  padKeys: new Set(),     // 게임패드로 눌린 코드
+  padId: '',
 
   init() {
     window.addEventListener('keydown', (e) => {
@@ -39,10 +43,45 @@ const Input = {
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
     window.addEventListener('blur', () => { this.keys.clear(); });
     window.addEventListener('pointerdown', () => Sound.unlock());
+    window.addEventListener('gamepadconnected', (e) => {
+      this.padId = e.gamepad.id || '게임패드';
+      if (typeof Game !== 'undefined' && Game.toast) Game.toast('게임패드 연결됨', '#62d6e8');
+    });
+    window.addEventListener('gamepaddisconnected', () => {
+      this.padId = '';
+      for (const c of this.padKeys) this.keys.delete(c);
+      this.padKeys.clear();
+      if (typeof Game !== 'undefined' && Game.toast) Game.toast('게임패드 연결 끊김', '#ff8a8a');
+    });
     this.setupTouch();
   },
 
+  // 게임패드 상태를 읽어 가상 키로 바꾼다
+  pollPad() {
+    if (!navigator.getGamepads) return;
+    let pads;
+    try { pads = navigator.getGamepads(); } catch (e) { return; }
+    const now = new Set();
+    for (const gp of pads) {
+      if (!gp || !gp.connected) continue;
+      if (!this.padId) this.padId = gp.id || '게임패드';
+      gp.buttons.forEach((b, i) => { const c = PAD_BUTTONS[i]; if (c && (b.pressed || b.value > 0.5)) now.add(c); });
+      const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+      if (ax < -0.5) now.add('G_left'); if (ax > 0.5) now.add('G_right');
+      if (ay < -0.6) now.add('G_up'); if (ay > 0.6) now.add('G_down');
+    }
+    for (const c of now) if (!this.padKeys.has(c)) { this.fresh.add(c); this.keys.add(c); }
+    for (const c of this.padKeys) if (!now.has(c)) this.keys.delete(c);
+    if (now.size && !this.padKeys.size && typeof Sound !== 'undefined') Sound.unlock();
+    this.padKeys = now;
+  },
+  padName() {
+    if (!this.padId) return '';
+    return this.padId.replace(/\(.*?\)/g, '').trim().slice(0, 28) || '게임패드';
+  },
+
   update() {
+    this.pollPad();
     this.frame++;
     this.pressedActs.clear();
     this.downActs.clear();

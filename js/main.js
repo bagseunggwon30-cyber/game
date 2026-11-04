@@ -88,6 +88,7 @@ const Game = {
 };
 
 async function boot() {
+  Settings.load();
   Input.init();
   Gfx.init();
   const loading = document.getElementById('loading');

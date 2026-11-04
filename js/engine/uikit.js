@@ -156,6 +156,7 @@ const APP_ICON_DRAW = {
   memo(c, G) { G.px(c, 0, 0, 22, 22, '#e8e0c8'); G.px(c, 5, 5, 12, 1, '#7a7a8a'); G.px(c, 5, 9, 10, 1, '#7a7a8a'); G.px(c, 5, 13, 12, 1, '#7a7a8a'); G.px(c, 13, 15, 4, 4, '#c41e3a'); },
   mind(c, G) { G.px(c, 0, 0, 22, 22, '#4a3a8a'); G.line(c, 11, 11, 11, 3, '#ff4a5a'); G.line(c, 11, 11, 18, 8, '#ff9a3a'); G.line(c, 11, 11, 16, 18, '#a99cff'); G.line(c, 11, 11, 6, 18, '#62d6e8'); G.line(c, 11, 11, 4, 8, '#f2d040'); G.px(c, 10, 10, 3, 3, '#ffffff'); for (const [x, y, col] of [[11, 3, '#ff4a5a'], [18, 8, '#ff9a3a'], [16, 18, '#a99cff'], [6, 18, '#62d6e8'], [4, 8, '#f2d040']]) G.px(c, x - 1, y - 1, 3, 3, col); },
   status(c, G) { G.px(c, 0, 0, 22, 22, '#3a6ad8'); G.circle(c, 11, 8, 4, '#ffffff'); G.px(c, 5, 14, 12, 5, '#ffffff'); G.px(c, 6, 13, 10, 1, '#ffffff'); },
+  codex(c, G) { G.px(c, 0, 0, 22, 22, '#8a6a2a'); G.px(c, 4, 3, 14, 16, '#e8d8a8'); G.px(c, 4, 3, 3, 16, '#c8a04a'); G.px(c, 9, 6, 7, 1, '#6a5020'); G.px(c, 9, 9, 6, 1, '#6a5020'); G.ring(c, 13, 14, 3, '#3a2a10'); G.line(c, 15, 16, 18, 19, '#3a2a10', 2); },
   settings(c, G) { G.px(c, 0, 0, 22, 22, '#5a5870'); G.circle(c, 11, 11, 6, '#d8d4e4'); G.circle(c, 11, 11, 2, '#5a5870'); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.px(c, Math.round(11 + Math.cos(a) * 7) - 1, Math.round(11 + Math.sin(a) * 7) - 1, 2, 2, '#d8d4e4'); } },
 };
 const AppIconCache = {};
@@ -179,11 +180,11 @@ function phoneGlitchOverlay(ctx, S, t) {
     ctx.fillStyle = i % 2 ? 'rgba(98,214,232,0.12)' : 'rgba(255,58,90,0.12)';
     ctx.fillRect(S.sx, y, S.sw, 1 + (i % 3));
   }
-  if (t % 90 < 6) {
+  if (t % 90 < 6 && !Settings.calm) {
     const y = S.sy + rndi(10, S.sh - 20);
     ctx.drawImage(Gfx.buf, S.sx, y, S.sw, 8, S.sx + rndi(-8, 8), y, S.sw, 8);
   }
-  for (let i = 0; i < 20; i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.3)'; ctx.fillRect(S.sx + rndi(0, S.sw - 2), S.sy + rndi(0, S.sh - 2), rndi(1, 3), 1); }
+  for (let i = 0; i < (Settings.calm ? 4 : 20); i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.3)'; ctx.fillRect(S.sx + rndi(0, S.sw - 2), S.sy + rndi(0, S.sh - 2), rndi(1, 3), 1); }
   UI.pill(ctx, S.sx + S.sw - 4, S.sy + S.sh - 14, '신호 불량', '#62d6e8', { align: 'right', dot: true });
 }
 // 글자 일부를 깨뜨린다

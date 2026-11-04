@@ -18,7 +18,7 @@ class DialogModal {
     const text = line[1];
     if (this.ch < text.length) {
       const prev = Math.floor(this.ch);
-      this.ch += 1.4;
+      this.ch += Settings.textSpeed;
       if (Math.floor(this.ch) !== prev && prev % 2 === 0 && text[prev] !== ' ') Sound.play('text');
     }
     if (Input.pressed('confirm') || Input.pressed('attack')) {
@@ -193,7 +193,7 @@ class Menu {
 
   // 타이틀처럼 테두리 없는 목록
   drawPlain(ctx) {
-    const C = UI.C, RH = 16;
+    const C = UI.C, RH = this.o.rh || 16;
     const y0 = this.o.y != null ? this.o.y : 120;
     this.items.forEach((it, i) => {
       const y = y0 + i * RH;
@@ -361,7 +361,7 @@ class StatusView {
       };
       meter('의심도', s.suspicion, 100, COL.orange, 0);
       meter('오염도', s.contamination, 100, COL.pink, 1);
-      meter('진실 조각', s.truths.length, TRUTH_ORDER.length, COL.cyan, 2);
+      meter('진실 조각', s.truths.length, truthList(s).length, COL.cyan, 2);
       Gfx.text(ctx, `은닉 ${s.stash.length} · 흡수 ${s.absorbed.length}`, gx, gy + 78, C.sub, { small: true });
       Gfx.text(ctx, `제출 ${s.submitted} · 임무 ${s.record.missions}`, gx, gy + 90, C.sub, { small: true });
       Gfx.text(ctx, `마음 지도 ${s.skills.length - 1} · SP ${s.sp || 0}`, gx, gy + 102, '#a99cff', { small: true });
@@ -399,7 +399,7 @@ class PhoneHome {
   update() {
     this.t++;
     if (this.blockInput > 0) { this.blockInput--; return; }
-    const n = this.apps.length, cols = 3;
+    const n = this.apps.length, cols = n > 6 ? 4 : 3;
     const prev = this.sel;
     if (Input.pressed('left')) this.sel = (this.sel - 1 + n) % n;
     if (Input.pressed('right')) this.sel = (this.sel + 1) % n;
@@ -420,7 +420,7 @@ class PhoneHome {
     ctx.drawImage(this.clock, Math.round(px + W / 2 - this.clock.width / 2), S.sy + 14);
     Gfx.text(ctx, this.dateText, px + W / 2, S.sy + 48, '#c8c4e0', { small: true, align: 'center' });
     // 앱 격자
-    const cols = 3, cw = 56, ch = 46;
+    const cols = this.apps.length > 6 ? 4 : 3, cw = cols === 4 ? 46 : 56, ch = 46;
     const gx = px + Math.round((W - cols * cw) / 2), gy = S.sy + 70;
     this.apps.forEach((a, i) => {
       const cx = gx + (i % cols) * cw, cy = gy + Math.floor(i / cols) * ch;
@@ -455,3 +455,71 @@ function artifactDesc(id) {
   if (a.light) eff.push(`시야+${a.light}`);
   return `[${RARITY[a.rarity].name}] ${a.desc}\n흡수 효과: ${eff.join(', ') || '없음'}  (오염 +${RARITY[a.rarity].cont})`;
 }
+
+// ── 환경 설정 화면 (←→ 값 변경) ──
+const PAD_CONTROLS_TEXT = '이동 · 메뉴 이동 — 왼쪽 스틱 / 십자키\n점프 · 확인 — A\n취소 · 대시 — B  (LT / RT도 대시)\n공격 — X\n뒤집기 (표면 ↔ 뒷면) — Y\n소모품 사용 — RB  ·  소모품 변경 — LB\n조사 · 상호작용 — ↑\n일시정지 — Start  ·  휴대폰 — Select\n\n표준 배치(Xbox 기준) 게임패드를 지원한다.';
+class SettingsView {
+  constructor() {
+    this.sel = 0; this.t = 0; this.blockInput = 6;
+    this.covers = true; this.wantsDim = true;
+  }
+  rows() {
+    const v = Settings.v;
+    const num = (k, label, desc) => ({ label, desc, val: () => v[k], text: () => String(v[k]), bar: () => v[k] / 10, adj: (d) => { v[k] = clamp(v[k] + d, 0, 10); } });
+    const pad = Input.padName();
+    return [
+      num('master', '전체 음량', '모든 소리의 크기.'),
+      num('music', '음악', '배경 음악과 앰비언스.'),
+      num('sfx', '효과음', '공격, 발소리, 알림 같은 효과음.'),
+      { label: '화면 흔들림', desc: '피격·폭발·보스 등장 때 화면이 흔들리는 정도.', text: () => SHAKE_NAMES[v.shake], adj: (d, wrap) => { v.shake = wrap ? (v.shake + 1) % 3 : clamp(v.shake + d, 0, 2); } },
+      { label: '깜빡임·글리치 줄이기', desc: '광과민성 배려: 화면 반전 섬광, 점멸, 화면 찢김, 노이즈 흔들림을 줄인다.', text: () => (v.calm ? '켬' : '끔'), adj: () => { v.calm = !v.calm; }, col: () => (v.calm ? COL.green : null) },
+      { label: '글자 속도', desc: '대화가 나타나는 속도.', text: () => TEXT_SPEED_NAMES[v.textSpeed], adj: (d, wrap) => { v.textSpeed = wrap ? (v.textSpeed + 1) % 4 : clamp(v.textSpeed + d, 0, 3); } },
+      { label: '조작법 · 키보드', desc: '키보드 조작 안내.', action: () => Game.push(new TextView('조작법 · 키보드', CONTROLS_TEXT)) },
+      { label: '조작법 · 게임패드', desc: pad ? '연결됨: ' + pad : '게임패드가 연결되어 있지 않다. 연결 후 아무 버튼이나 누르면 인식된다.', action: () => Game.push(new TextView('조작법 · 게임패드', PAD_CONTROLS_TEXT)) },
+      { label: '닫기', desc: '설정은 이 기기에 저장된다.', action: () => this.close() },
+    ];
+  }
+  close() { Settings.save(); Game.pop(this); }
+  update() {
+    this.t++;
+    if (this.blockInput > 0) { this.blockInput--; return; }
+    const rows = this.rows();
+    if (Input.pressed('up')) { this.sel = (this.sel - 1 + rows.length) % rows.length; Sound.play('menu'); }
+    if (Input.pressed('down')) { this.sel = (this.sel + 1) % rows.length; Sound.play('menu'); }
+    const r = rows[this.sel];
+    const d = Input.pressed('left') ? -1 : Input.pressed('right') ? 1 : 0;
+    if (d && r.adj) { r.adj(d); Settings.save(); Sound.play('menu'); }
+    if (Input.pressed('confirm')) {
+      if (r.action) { Sound.play('select'); r.action(); }
+      else if (r.adj && !r.bar) { r.adj(1, true); Settings.save(); Sound.play('select'); }
+      return;
+    }
+    if (Input.pressed('cancel') || Input.pressed('pause')) { Sound.play('cancel'); this.close(); }
+  }
+  draw(ctx) {
+    const C = UI.C, rows = this.rows(), RH = 13;
+    const w = 280, h = 30 + rows.length * RH + 36;
+    const x = Math.round((VW - w) / 2), y = Math.round((VH - h) / 2) - 6;
+    UI.card(ctx, x, y, w, h, { accent: C.accent });
+    Gfx.text(ctx, '환경 설정', x + 10, y + 5, C.text, { bold: true });
+    ctx.fillStyle = C.accent; ctx.fillRect(x + 10, y + 20, 14, 2);
+    rows.forEach((r, i) => {
+      const yy = y + 27 + i * RH, sel = i === this.sel;
+      if (sel) { ctx.fillStyle = C.accentSoft; ctx.fillRect(x + 4, yy, w - 8, RH - 1); ctx.fillStyle = C.accent; ctx.fillRect(x + 4, yy + 2, 2, RH - 5); }
+      Gfx.text(ctx, r.label, x + 12, yy + 1, sel ? C.text : C.sub, { small: true });
+      if (r.text) {
+        const vx = x + w - 12;
+        const txt = r.text();
+        const col = (r.col && r.col()) || (sel ? C.accent : C.sub);
+        if (r.bar) {
+          UI.bar(ctx, vx - 86, yy + 5, 60, 3, r.bar(), sel ? C.accent : C.line2);
+          Gfx.text(ctx, txt, vx, yy + 1, col, { small: true, align: 'right' });
+        } else Gfx.text(ctx, (sel ? '◀ ' : '') + txt + (sel ? ' ▶' : ''), vx, yy + 1, col, { small: true, align: 'right' });
+      } else if (r.action && sel) Gfx.text(ctx, '열기 ›', x + w - 12, yy + 1, C.accent, { small: true, align: 'right' });
+    });
+    UI.divider(ctx, x + 8, y + h - 33, w - 16);
+    Gfx.para(ctx, rows[this.sel].desc || '', x + 12, y + h - 28, w - 24, C.mute, { small: true, maxLines: 2 });
+    UI.hints(ctx, x + w, y + h + 3, [['↑↓', '선택'], ['←→', '변경'], ['X', '닫기']]);
+  }
+}
+function openSettings() { Game.push(new SettingsView()); }

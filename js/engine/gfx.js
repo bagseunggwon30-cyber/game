@@ -61,7 +61,11 @@ const Gfx = {
     this.ctx.imageSmoothingEnabled = false;
   },
 
-  shake(mag, t) { if (mag >= this.shakeMag || this.shakeT <= 0) { this.shakeMag = mag; this.shakeT = t; } },
+  shake(mag, t) {
+    mag *= Settings.shakeMul;
+    if (mag <= 0) return;
+    if (mag >= this.shakeMag || this.shakeT <= 0) { this.shakeMag = mag; this.shakeT = t; }
+  },
 
   present() {
     const c = this.ctx;

@@ -502,6 +502,7 @@ class Enemy {
     const sc = this.sc;
     this.dead = true;
     sc.run.kills++;
+    if (codexAdd(sc.s, 'enemy', this.type)) sc.floatText(this.cx, this.y - 14, '도감 등록', '#c8a04a');
     Sound.play('kill');
     for (let i = 0; i < 16; i++) sc.particles.push({ x: this.cx + rnd(-4, 4), y: this.cy + rnd(-6, 6), vx: rnd(-2, 2), vy: rnd(-2.5, 1), life: rndi(18, 34), col: pickR(['#0b0b10', '#ff5a8a', '#f4f0e6', '#5a2030']), size: rndi(1, 3), g: 0.08 });
     if (this.layer === 'back') {

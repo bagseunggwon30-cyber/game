@@ -18,14 +18,12 @@ const Sound = {
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.7;
       this.master.connect(this.ctx.destination);
       this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.55;
       this.sfxGain.connect(this.master);
       this.musGain = this.ctx.createGain();
-      this.musGain.gain.value = 0.35;
       this.musGain.connect(this.master);
+      this.applyVolumes();
       const len = this.ctx.sampleRate * 1.5;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
@@ -36,8 +34,15 @@ const Sound = {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.7;
+    this.applyVolumes();
     return this.muted;
+  },
+  applyVolumes() {
+    if (!this.ctx) return;
+    const v = Settings.v;
+    this.master.gain.value = this.muted ? 0 : v.master / 10;
+    this.sfxGain.gain.value = 0.7 * v.sfx / 10;
+    this.musGain.gain.value = 0.58 * v.music / 10;
   },
 
   tone(freq, dur, type = 'square', vol = 0.15, slide = 0, delay = 0, dest = null) {
@@ -135,9 +140,66 @@ const Sound = {
     }
   },
 
+  // ── 음악: 짧은 앞당김 스케줄러 (16분음표 단위) ──
+  noteAt(freq, dur, type, vol, t, dest, att = 0.01, detune = 0) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t); if (detune) o.detune.setValueAtTime(detune, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + att);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(dest);
+    o.start(t); o.stop(t + dur + 0.05);
+  },
+  drumAt(kind, t, dest, vol = 1) {
+    const ctx = this.ctx;
+    if (kind === 'kick') {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+      g.gain.setValueAtTime(0.12 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.2);
+      return;
+    }
+    const src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter(), g = ctx.createGain();
+    const hat = kind === 'hat';
+    f.type = hat ? 'highpass' : 'bandpass'; f.frequency.value = hat ? 7000 : 1800; f.Q.value = hat ? 0.7 : 0.9;
+    const dur = hat ? 0.04 : 0.12;
+    g.gain.setValueAtTime((hat ? 0.035 : 0.06) * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(dest); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+  },
+  startSong(name, out) {
+    const S = SONGS[name], ctx = this.ctx;
+    if (!S._mel && S.mel) S._mel = parseMel(S.mel);
+    const bus = ctx.createGain(); bus.gain.value = SONG_BUS; bus.connect(out);
+    let dest = bus;
+    if (S.lowpass) { const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = S.lowpass; lp.connect(bus); dest = lp; }
+    const sd = 60 / S.bpm / 4;
+    let step = 0, next = ctx.currentTime + 0.08;
+    if (this.songTimer) clearInterval(this.songTimer);
+    this.songTimer = setInterval(() => {
+      if (next < ctx.currentTime - 0.05) next = ctx.currentTime + 0.05;   // 탭이 잠들었다 깨면 밀린 음은 건너뛴다
+      while (next < ctx.currentTime + 0.15) { this.songStep(S, step, next, dest, sd); step++; next += sd; }
+    }, 40);
+  },
+  songStep(S, step, t, dest, sd) {
+    const nb = S.chords.length, bar = Math.floor(step / 16) % nb, i = step % 16;
+    const ch = S.chords[bar];
+    const det = () => (S.detune || 0) + (S.wobble ? (Math.random() - 0.5) * S.wobble : 0);
+    if (S.pad && i === 0) for (const n of ch) this.noteAt(midiHz(n + 12), sd * 16 * 1.05, S.pad[0], S.pad[1], t, dest, 0.25, det());
+    if (S.bass && S.bass[i] != null) this.noteAt(midiHz(ch[0] + S.bass[i]), sd * (S.bassLen || 3), S.bassWave || 'triangle', S.bassVol || 0.06, t, dest, 0.01, det());
+    if (S.arp && S.arp[i] != null) { const k = S.arp[i]; this.noteAt(midiHz(ch[k % ch.length] + 12 * Math.floor(k / ch.length) + (S.arpOct || 12)), sd * 3, S.arpWave || 'triangle', S.arpVol || 0.035, t, dest, 0.01, det()); }
+    if (S._mel) {
+      const m = S._mel[step % S._mel.length];
+      if (m != null) this.noteAt(midiHz(m), sd * (S.melLen || 3), S.melWave || 'triangle', S.melVol || 0.05, t, dest, 0.015, det());
+    }
+    for (const d of ['kick', 'snare', 'hat']) if (S[d] && S[d][i] === 'x') this.drumAt(d, t, dest, S.drumVol || 1);
+  },
+
   // ── 앰비언스 / 간단한 음악 ──
   stopAmbience() {
     if (this.seqTimer) { clearInterval(this.seqTimer); this.seqTimer = null; }
+    if (this.songTimer) { clearInterval(this.songTimer); this.songTimer = null; }
     if (this.amb) {
       const t = this.ctx.currentTime;
       for (const n of this.amb.nodes) {
@@ -181,38 +243,93 @@ const Sound = {
       target = 0.8;
       this.seqTimer = setInterval(() => { if (Math.random() < 0.3) this.noise(0.8, 0.03, 2000 + Math.random() * 3000, 10, 0, 'bandpass', this.musGain); }, 1400);
     } else if (mode === 'boss') {
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600; lp.connect(out);
-      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 46; o.connect(lp); o.start(); srcs.push(o);
-      target = 0.5;
-      let step = 0;
-      const bass = [55, 55, 65.4, 55, 58.3, 55, 82.4, 73.4];
+      // 낮은 드론 + 곡
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(out);
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 36.7; const og = ctx.createGain(); og.gain.value = 0.35; o.connect(og); og.connect(lp); o.start(); srcs.push(o);
+      target = 0.55;
+      this.startSong('boss', out);
+    } else if (SONGS[mode]) {
+      target = SONGS[mode].gain || 0.6;
+      this.startSong(mode, out);
+    }
+    if (mode === 'front') {
+      // 표면: 드론 위에 드문드문 떨어지는 피아노 음
+      const scale = [57, 60, 62, 64, 67, 69, 72, 76];
       this.seqTimer = setInterval(() => {
-        const f = bass[step % bass.length];
-        this.tone(f, 0.18, 'square', 0.12, 0, 0, this.musGain);
-        if (step % 2 === 0) this.noise(0.05, 0.12, 6000, 1, 0, 'highpass', this.musGain);
-        if (step % 4 === 2) this.noise(0.12, 0.2, 250, 1, 0, 'bandpass', this.musGain);
-        step++;
-      }, 165);
-    } else if (mode === 'hub' || mode === 'hubnight' || mode === 'title') {
-      target = 0.45;
-      const chords = mode === 'title'
-        ? [[110, 130.8, 164.8], [87.3, 110, 130.8], [98, 123.5, 146.8], [82.4, 103.8, 123.5]]
-        : [[130.8, 164.8, 196], [110, 130.8, 164.8], [87.3, 110, 130.8], [98, 123.5, 146.8]];
-      const pad = [osc('triangle', chords[0][0], 0.05), osc('triangle', chords[0][1], 0.04), osc('triangle', chords[0][2], 0.035)];
-      let step = 0;
-      const speed = mode === 'hubnight' ? 420 : mode === 'title' ? 480 : 340;
-      this.seqTimer = setInterval(() => {
-        const ch = chords[Math.floor(step / 8) % chords.length];
-        if (step % 8 === 0) pad.forEach((p, i) => p.o.frequency.setTargetAtTime(ch[i], ctx.currentTime, 0.2));
-        const arp = [0, 1, 2, 1, 2, 0, 1, 2];
-        if (mode !== 'title' || step % 2 === 0) {
-          this.tone(ch[arp[step % 8]] * (mode === 'hubnight' ? 2 : 4), 0.25, 'sine', 0.05, 0, 0, this.musGain);
+        if (Math.random() < 0.35) {
+          const n = scale[Math.floor(Math.random() * scale.length)];
+          this.noteAt(midiHz(n), 2.2, 'triangle', 0.06, ctx.currentTime + 0.02, this.musGain, 0.01);
+          if (Math.random() < 0.3) this.noteAt(midiHz(n + 7), 2.0, 'sine', 0.035, ctx.currentTime + 0.4, this.musGain, 0.01);
         }
-        if (mode === 'hub' && step % 4 === 0) this.noise(0.04, 0.05, 7000, 1, 0, 'highpass', this.musGain);
-        step++;
-      }, speed);
+      }, 1700);
     }
     out.gain.setTargetAtTime(target, ctx.currentTime, 0.6);
     this.amb = { nodes, srcs };
+  },
+};
+
+// ── 곡 데이터 ──
+const SONG_BUS = 2.2;   // 곡 전체 음량 (효과음보다 한 단계 아래)
+function midiHz(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+const NOTE_IDX = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
+// "E5 . G5 ." → MIDI 번호 배열 (마디 구분 | 는 무시)
+function parseMel(str) {
+  return str.split(/\s+/).filter((t) => t && t !== '|').map((t) => {
+    if (t === '.' || t === '-') return null;
+    const m = t.match(/^([A-G][#b]?)(\d)$/);
+    return m ? NOTE_IDX[m[1]] + (Number(m[2]) + 1) * 12 : null;
+  });
+}
+const SONGS = {
+  // 사무소 거리 (낮): 느긋한 로파이
+  hub: {
+    bpm: 88, gain: 0.55,
+    chords: [[48, 52, 55, 59], [45, 48, 52, 55], [41, 45, 48, 52], [43, 47, 50, 52]],
+    pad: ['triangle', 0.018], bass: [-12, null, null, null, null, null, -12, null, null, null, -5, null, null, null, null, null], bassVol: 0.07,
+    mel: 'E5 . G5 . . . A5 . G5 . E5 . . . D5 . | C5 . . . E5 . . . D5 . C5 . A4 . . . | A4 . C5 . . . E5 . . . G5 . E5 . . . | D5 . . . E5 . D5 . B4 . . . . . . .',
+    melVol: 0.04, kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', drumVol: 0.6,
+  },
+  // 옥탑방 (밤): 아르페지오
+  hubnight: {
+    bpm: 70, gain: 0.55,
+    chords: [[45, 48, 52, 57], [41, 45, 48, 53], [48, 52, 55, 60], [40, 44, 47, 52]],
+    pad: ['sine', 0.014], bass: [-12, null, null, null, null, null, null, null, -12, null, null, null, null, null, null, null], bassVol: 0.06, bassLen: 8,
+    arp: [0, null, 1, null, 2, null, 3, null, 2, null, 1, null, 2, null, 1, null], arpVol: 0.03,
+    mel: 'E6 . . . . . . . . . . . . . . . | . . . . . . . . C6 . . . . . . . | G5 . . . . . . . . . . . . . . . | . . . . . . . . G#5 . . . B5 . . .',
+    melWave: 'sine', melVol: 0.03, melLen: 10,
+  },
+  // 타이틀: 느린 종소리
+  title: {
+    bpm: 62, gain: 0.55,
+    chords: [[45, 48, 52], [50, 53, 57], [40, 44, 47], [45, 48, 52]],
+    pad: ['triangle', 0.02], bass: [-12, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], bassVol: 0.06, bassLen: 14,
+    mel: 'A5 . . . . . . . E5 . . . . . . . | F5 . . . . . . . D5 . . . . . . . | E5 . . . G#5 . . . B5 . . . . . . . | A5 . . . . . . . . . . . . . . .',
+    melWave: 'sine', melVol: 0.035, melLen: 12,
+  },
+  // 보스: 빠른 단조 베이스와 북
+  boss: {
+    bpm: 148, gain: 0.55,
+    chords: [[38, 41, 45], [34, 38, 41], [36, 40, 43], [33, 37, 40]],
+    bass: [0, 0, 12, 0, 0, 0, 10, 0, 0, 0, 12, 0, 7, 0, 10, 12], bassWave: 'square', bassVol: 0.045, bassLen: 1,
+    mel: 'D6 . . . . . F6 . . . E6 . . . . . | D6 . . . . . F6 . . . G6 . F6 . E6 . | C6 . . . . . E6 . . . G6 . . . . . | C#6 . . . E6 . . . A6 . . . G6 . E6 .',
+    melWave: 'sawtooth', melVol: 0.022, melLen: 2,
+    kick: 'x...x...x...x...', snare: '....x.......x..x', hat: '..x...x...x...x.', drumVol: 0.9,
+  },
+  // 근무 수칙 알바: 밝은데 음이 조금씩 어긋나는 매장 음악
+  muzak: {
+    bpm: 104, gain: 0.5, detune: 28, wobble: 70, lowpass: 1600,
+    chords: [[41, 45, 48], [38, 41, 45], [46, 50, 53], [48, 52, 55]],
+    pad: ['triangle', 0.016], bass: [-12, null, null, null, -5, null, null, null, -12, null, null, null, -5, null, null, null], bassVol: 0.09, bassLen: 2,
+    mel: 'C5 . A4 . F4 . A4 . C5 . . . D5 . C5 . | A4 . . . F4 . . . D4 . F4 . A4 . . . | Bb4 . D5 . F5 . D5 . Bb4 . . . C5 . D5 . | E5 . . . G5 . . . C5 . . . . . . .',
+    melWave: 'square', melVol: 0.04, melLen: 2, hat: '..x...x...x...x.', drumVol: 0.5,
+  },
+  // 모두의 퇴근: 새벽
+  dawn: {
+    bpm: 78, gain: 0.6,
+    chords: [[50, 54, 57], [45, 49, 52], [47, 50, 54], [43, 47, 50]],
+    pad: ['triangle', 0.02], bass: [-12, null, null, null, null, null, null, null, -5, null, null, null, null, null, null, null], bassVol: 0.06, bassLen: 7,
+    arp: [0, null, 1, null, 2, null, 1, null, 0, null, 1, null, 2, null, 3, null], arpVol: 0.025,
+    mel: 'F#5 . . . A5 . . . D6 . . . . . . . | E5 . . . A5 . . . C#6 . . . . . . . | D5 . . . F#5 . . . B5 . . . A5 . . . | G5 . . . B5 . . . D6 . . . . . . .',
+    melWave: 'sine', melVol: 0.04, melLen: 6,
   },
 };

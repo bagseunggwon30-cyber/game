@@ -607,8 +607,9 @@ function buildRoomMap(spec, seed) {
   const iSpots = [];
   for (const r of rooms) for (const m of r.marks.i) iSpots.push(m);
   rng.shuffle(iSpots);
-  const docId = spec.doc || spec.randomDoc;
-  if (docId && iSpots.length) { const m = iSpots.pop(); out.interacts.push({ type: 'doc', id: docId, x: wx(m.x), y: wx(m.y + 1) - 14, w: 16, h: 14, layer: 'front' }); targets.push([m.x, m.y, 'front']); }
+  for (const docId of [spec.doc || spec.randomDoc, spec.doc2]) {
+    if (docId && iSpots.length) { const m = iSpots.pop(); out.interacts.push({ type: 'doc', id: docId, x: wx(m.x), y: wx(m.y + 1) - 14, w: 16, h: 14, layer: 'front' }); targets.push([m.x, m.y, 'front']); }
+  }
   const nCash = rng.int(1, 3) + Math.floor(rooms.length / 6);
   for (let k = 0; k < nCash && iSpots.length; k++) { const m = iSpots.pop(); out.pickups.push({ type: 'cash', amount: rng.int(3, 12) * 1000 * d, x: wx(m.x) + 1, y: wx(m.y + 1) - 16, layer: 'front' }); }
   const nBox = rng.int(1, 2) + Math.floor(rooms.length / 8);

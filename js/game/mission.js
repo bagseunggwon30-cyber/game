@@ -13,10 +13,12 @@ class MissionScene {
     this.theme = job.theme;
     this.th = THEMES[job.theme];
     this.obj = this.deep ? (this.deep.stage < this.deep.stages ? 'descend' : job.finalObj) : job.obj;
+    const lastStage = !this.deep || this.deep.stage === this.deep.stages;
+    const ngDoc = this.story && lastStage && this.s.cycle >= 2 && NG_DOCS[this.story.id] && !this.s.truths.includes(NG_DOCS[this.story.id]) ? NG_DOCS[this.story.id] : null;
     const randomDoc = !this.story && Math.random() < 0.3 + 0.04 * this.s.stats.luk + this.D.m.docChance ? this.pickRandomDoc() : null;
     this.gen = generateMission({
       theme: job.theme, obj: this.obj, diff: this.diff, seed: job.seed + (this.deep ? this.deep.stage * 7919 : 0), luk: this.s.stats.luk, deep: this.deep,
-      tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc,
+      tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc, doc2: ngDoc,
       weekMod: this.s.weekMod, rules: job.rules, patrol: job.patrol,
       boss: this.story && this.story.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
     });
@@ -24,7 +26,9 @@ class MissionScene {
     this.tiles = buildTiles(job.theme);
     this.player = new Player(this.gen.start.x, this.gen.start.y, this);
     this.player.shield = 0;
-    this.enemies = this.gen.enemies.map((e) => new Enemy(e.type, e.x, e.y, e.layer, this, this.diff));
+    this.ng = ngMul(this.s);
+    if (!carry) codexAdd(this.s, 'place', job.theme);
+    this.enemies = this.gen.enemies.map((e) => this.ngScale(new Enemy(e.type, e.x, e.y, e.layer, this, this.diff)));
     if (this.s.weekMod === 'boom') for (const e of this.enemies) { e.hp = Math.round(e.hp * 1.15); e.maxHp = e.hp; }
     if (this.s.weekMod === 'blackout') this.D.light -= 15;
     this.pickups = this.gen.pickups.map((p) => makePickup(p));
@@ -98,8 +102,9 @@ class MissionScene {
   }
 
   enter() {
-    Sound.setAmbience('front');
-    const intro = (this.story && !this.carry ? this.story.intro : null) || (this.side ? this.side.intro : null) ||
+    Sound.setAmbience(this.frontAmb());
+    const storyIntro = this.story && !this.carry ? (this.s.cycle >= 2 && NG_INTRO[this.story.id] ? NG_INTRO[this.story.id].concat(this.story.intro) : this.story.intro) : null;
+    const intro = storyIntro || (this.side ? this.side.intro : null) ||
       (this.job.ruleJob ? [['', RULE_SCENES[this.theme].intro]] : null);
     const next = () => {
       if (this.rule) Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), () => this.showStartBanner(), { paper: true }));
@@ -125,7 +130,22 @@ class MissionScene {
   // ── 편의 ──
   toast(text, col) { Game.toast(text, col); }
   floatText(x, y, text, col) { this.floaters.push({ x, y, text, col, t: 45 }); }
-  spawnEnemy(type, x, y, layer) { const e = new Enemy(type, x, y, layer, this, this.diff); this.enemies.push(e); return e; }
+  spawnEnemy(type, x, y, layer) { const e = this.ngScale(new Enemy(type, x, y, layer, this, this.diff)); this.enemies.push(e); return e; }
+  // 표면 배경음: 근무 수칙 알바는 어딘가 어긋난 매장 음악
+  frontAmb() { return this.rule ? 'muzak' : 'front'; }
+  // 화면 안에서 같은 면에 보이는 존재를 도감에 '목격'으로 남긴다
+  codexLook() {
+    const p = this.player, cam = this.cam;
+    for (const e of this.enemies) {
+      if (e.dead || (e.layer !== p.layer && e.layer !== 'both')) continue;
+      if (e.cx < cam.x || e.cx > cam.x + VW || e.cy < cam.y || e.cy > cam.y + VH) continue;
+      if (codexSee(this.s, 'enemy', e.type)) this.floatText(e.cx, e.y - 14, '도감 등록', '#c8a04a');
+    }
+  }
+  ngScale(e) {
+    if (this.ng > 1) { e.hp = Math.round(e.hp * this.ng); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (1 + (this.ng - 1) / 2)); }
+    return e;
+  }
 
   // ───── 공포 / 희망 / 상태 효과 ─────
   get m() { return this.D.m; }
@@ -427,7 +447,7 @@ class MissionScene {
     p.layer = target;
     this.flipFx = 16;
     if (!silent) Sound.play(target === 'back' ? 'flip' : 'unflip');
-    Sound.setAmbience(this.arenaActive && this.boss && !this.boss.dead ? 'boss' : target === 'back' ? 'back' : 'front');
+    Sound.setAmbience(this.arenaActive && this.boss && !this.boss.dead ? 'boss' : target === 'back' ? 'back' : this.frontAmb());
     for (let i = 0; i < 14; i++) this.particles.push({ x: p.cx + rnd(-8, 8), y: p.cy + rnd(-12, 12), vx: rnd(-1, 1), vy: rnd(-1.5, 0.5), life: 22, col: target === 'back' ? '#ff3a5a' : '#f4f0e6', size: 2 });
   }
 
@@ -552,7 +572,7 @@ class MissionScene {
         const isNew = !this.s.truths.includes(o.id);
         if (isNew) { this.s.truths.push(o.id); this.run.docs.push(o.id); }
         Sound.play('pickup');
-        Game.push(new TextView(tr.title, tr.text + (isNew ? '\n\n[진실 조각 획득 ' + this.s.truths.length + '/' + TRUTH_ORDER.length + ']' : ''), null, { paper: true }));
+        Game.push(new TextView(tr.title, tr.text + (isNew ? '\n\n[진실 조각 획득 ' + this.s.truths.length + '/' + truthList(this.s).length + ']' : ''), null, { paper: true }));
         break;
       }
       case 'core':
@@ -673,6 +693,8 @@ class MissionScene {
     }
     this.forceBackUntil = this.time + 150;
     this.boss = new Boss(a.boss, a, this, this.diff);
+    codexSee(this.s, 'boss', a.boss);
+    if (this.ng > 1) { this.boss.maxHp = Math.round(this.boss.maxHp * this.ng); this.boss.hp = this.boss.maxHp; this.boss.dmg = Math.round(this.boss.dmg * (1 + (this.ng - 1) / 2)); }
     Sound.play('boss');
     Sound.setAmbience('boss');
     Gfx.shake(4, 30);
@@ -684,10 +706,12 @@ class MissionScene {
     this.unsealArena();
     this.objState.complete = true; this.objState.bossDone = true;
     this.run.boss = true;
+    codexAdd(this.s, 'boss', boss.key);
+    if (MEME_BY_BOSS[boss.key]) codexAdd(this.s, 'meme', MEME_BY_BOSS[boss.key]);
     this.addHope(20, '말소');
     this.player.fear = 0; this.player.st.remove('panic');
     Sound.play('resolve');
-    Sound.setAmbience(this.player.layer === 'back' ? 'back' : 'front');
+    Sound.setAmbience(this.player.layer === 'back' ? 'back' : this.frontAmb());
     // 보상 아티팩트
     if (this.story && this.story.reward) {
       this.pickups.push(makePickup({ type: 'artifact', id: this.story.reward, x: boss.cx - 7, y: a.floorY - 30, layer: 'back' }));
@@ -714,7 +738,7 @@ class MissionScene {
     this.boss = null;
     this.projectiles = this.projectiles.filter((pr) => pr.from === 'player');
     for (const e of this.enemies) if (e.layer === 'back' && this.inArena(e.cx, e.cy)) e.dead = true;
-    Sound.setAmbience(this.player.layer === 'back' ? 'back' : 'front');
+    Sound.setAmbience(this.player.layer === 'back' ? 'back' : this.frontAmb());
   }
   inArena(x, y) {
     const a = this.gen.arena;
@@ -742,34 +766,79 @@ class MissionScene {
     const s = this.s;
     const canExpose = s.truths.length >= EXPOSE_NEED;
     const canMerge = s.contamination >= 60;
-    Game.push(new Menu({
-      title: '결재함 앞에서', w: 250, desc: true, onCancel: false, block: 45,
-      items: [
-        { label: '계약서에 서명한다', desc: '정규직이 된다. 청명의 일부로, 영원히 안전하게.', onSelect: (m) => { m.close(); this.endWith('hire'); } },
-        { label: '모든 기록을 퍼뜨린다', disabled: !canExpose, desc: canExpose ? '모은 진실을 세상에 공개한다. 청명이 막아설 것이다.' : `진실 조각이 부족하다 (${s.truths.length}/${EXPOSE_NEED})`, onSelect: (m) => { m.close(); this.finaleFight('expose'); } },
-        { label: '뒷면에 남는다', disabled: !canMerge, desc: canMerge ? '표면으로 돌아가지 않는다. 당신은 이야기가 된다.' : `아직 뒷면이 당신을 받아들이지 않는다 (오염 ${Math.round(s.contamination)}/60)`, onSelect: (m) => { m.close(); this.endWith('merge'); } },
-        { label: '거절한다', desc: '서명하지 않고 나간다. 청명이 막아설 것이다.', onSelect: (m) => { m.close(); this.finaleFight('quit'); } },
-      ],
-    }));
+    const items = [
+      { label: '계약서에 서명한다', desc: '정규직이 된다. 청명의 일부로, 영원히 안전하게.', onSelect: (m) => { m.close(); this.endWith('hire'); } },
+      { label: '모든 기록을 퍼뜨린다', disabled: !canExpose, desc: canExpose ? '모은 진실을 세상에 공개한다. 청명이 막아설 것이다.' : `진실 조각이 부족하다 (${s.truths.length}/${EXPOSE_NEED})`, onSelect: (m) => { m.close(); this.finaleFight('expose'); } },
+      { label: '뒷면에 남는다', disabled: !canMerge, desc: canMerge ? '표면으로 돌아가지 않는다. 당신은 이야기가 된다.' : `아직 뒷면이 당신을 받아들이지 않는다 (오염 ${Math.round(s.contamination)}/60)`, onSelect: (m) => { m.close(); this.endWith('merge'); } },
+    ];
+    // 서브 의뢰 연작을 시작했다면 그 인연이 선택지가 된다
+    if (s.sideDone.includes('A1')) {
+      const ok = !!s.flags.noeulFree;
+      items.push({ label: '노을을 부른다', disabled: !ok, desc: ok ? '혼자 그만두지 않는다. 노을과 함께 청명을 거절한다. (싸움 중 노을이 돕는다)' : '노을은 아직 청명에 묶여 있다 (서브 의뢰 "마지막 근무")', onSelect: (m) => { m.close(); this.finaleFight('together'); } });
+    }
+    if (s.sideDone.includes('C1')) {
+      const ok = s.sideDone.includes('C3');
+      items.push({ label: 'K의 방송을 켠다', disabled: !ok, desc: ok ? '이 모든 것을 생중계한다. 시청자의 응원이 희망이 된다.' : 'K는 아직 진짜를 찍을 준비가 안 됐다 (서브 의뢰 "마지막 방송")', onSelect: (m) => { m.close(); this.finaleFight('live'); } });
+    }
+    if (s.cycle >= 2) {
+      const ok = trueEndReady(s);
+      const need = [];
+      if (!NG_TRUTHS.every((t) => s.truths.includes(t))) need.push(`재계약 문서 ${NG_TRUTHS.filter((t) => s.truths.includes(t)).length}/${NG_TRUTHS.length}`);
+      if (s.truths.length < TRUE_END_TRUTHS) need.push(`진실 ${s.truths.length}/${TRUE_END_TRUTHS}`);
+      if (!s.sideDone.includes('A3')) need.push('노을의 마지막 근무');
+      if (!s.sideDone.includes('C3')) need.push('K의 마지막 방송');
+      items.push({ label: '팀장의 이름을 부른다', disabled: !ok, desc: ok ? '퇴근 도장 대장을 꺼낸다. 이번엔 끝까지 간다.' : '아직 이름을 다 모르겠다 — ' + need.join(' · '), onSelect: (m) => { m.close(); this.finaleFight('true'); } });
+    }
+    items.push({ label: '거절한다', desc: '서명하지 않고 나간다. 청명이 막아설 것이다.', onSelect: (m) => { m.close(); this.finaleFight('quit'); } });
+    Game.push(new Menu({ title: '결재함 앞에서', w: 270, desc: true, onCancel: false, block: 45, items }));
   }
   finaleFight(route) {
     this.finaleRoute = route;
-    Game.push(new DialogModal([
-      ['seo', route === 'expose' ? '...그걸 다 모았어요? 하람 씨, 그러면 우리 모두 사라져요.' : '그래요. 다들 처음엔 거절해요.'],
-      ['seo', '청명이 허락하지 않을 거예요.'],
-      ['', '결재함이 열리고, 도장이 찍히는 소리가 천둥처럼 울렸다.'],
-    ], () => {
+    this.allyT = 0;
+    Game.push(new DialogModal(FINALE_ROUTES[route].concat([['', '결재함이 열리고, 도장이 찍히는 소리가 천둥처럼 울렸다.']]), () => {
       this.locked = false;
       this.interacts = this.interacts.filter((o) => o.type !== 'core');
       this.startArena();
+      if (route === 'together') this.toast('노을이 반쪽 사원증으로 신호를 잡아 준다 — 교란 면역', '#9ad0a8');
+      if (route === 'live') this.toast('생방송 시작 — 시청자의 응원이 희망이 된다', '#ff8a7a');
     }));
+  }
+  // 최종전 동료 효과
+  updateFinaleAlly() {
+    const r = this.finaleRoute, p = this.player;
+    if (!this.arenaActive || !r || p.dead) return;
+    this.allyT = (this.allyT || 0) + 1;
+    if (r === 'together') {
+      this.jam.immune = Math.max(this.jam.immune, 2);
+      if (this.allyT % 720 === 0) {
+        p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.12));
+        p.st.remove('panic'); p.fear = Math.max(0, p.fear - 25);
+        this.floatText(p.cx, p.y - 16, '노을: 버텨요!', '#9ad0a8');
+        Sound.play('anchor');
+      }
+    } else if (r === 'live') {
+      if (this.allyT % 600 === 0) {
+        this.addHope(5, '시청자 응원');
+        this.floatText(p.cx, p.y - 24, pickR(['ㅋㅋㅋ 연출 미쳤다', '도망쳐!!', '이거 진짜임?', '형광조끼 화이팅', '구독 박고 갑니다']), '#ff8a7a');
+      }
+    }
   }
   afterFinaleBoss() {
     this.locked = true;
-    Game.push(new DialogModal([
-      ['', '거대한 도장이 금 가며 부서졌다. 수천 장의 결재 서류가 흩날린다.'],
-      ['seo', '...이상하네요. 처음으로, 내 이름이 기억나요.'],
-    ], () => this.endWith(this.finaleRoute)));
+    if (this.finaleRoute === 'true' && !this.truePhase2) {
+      this.truePhase2 = true;
+      Game.push(new DialogModal(FINALE_TRUE_MID, () => {
+        this.locked = false;
+        this.gen.arena.boss = 'nameless';
+        this.objState.complete = false; this.objState.bossDone = false;
+        this.startArena();
+      }));
+      return;
+    }
+    const last = this.finaleRoute === 'true'
+      ? [['', '이름 없는 사원증들이 하나씩 떨어져 나와, 바닥에 조용히 쌓였다.'], ['seo', '...이상하네요. 처음으로, 내 이름이 기억나요.']]
+      : [['', '거대한 도장이 금 가며 부서졌다. 수천 장의 결재 서류가 흩날린다.'], ['seo', '...이상하네요. 처음으로, 내 이름이 기억날 것 같아요.']];
+    Game.push(new DialogModal(last, () => this.endWith(this.finaleRoute)));
   }
   endWith(key) {
     this.ending = true;
@@ -828,6 +897,8 @@ class MissionScene {
     for (const e of this.enemies) if (!e.dead) e.update();
     this.enemies = this.enemies.filter((e) => !e.dead);
     if (this.boss) this.boss.update();
+    if (this.finaleRoute) this.updateFinaleAlly();
+    if (this.time % 20 === 0) this.codexLook();
     this.updateProjectiles();
     this.updatePickups();
     this.updateInteracts();
@@ -888,7 +959,7 @@ class MissionScene {
         { label: '계속하기', desc: '현장으로 돌아간다.', onSelect: (m) => m.close() },
         { label: '소지품', desc: '소모품 목록을 확인한다.', onSelect: () => this.showItems() },
         { label: '내 상태', desc: '능력치를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
-        { label: '조작법', desc: '키 안내', onSelect: () => Game.push(new TextView('조작법', CONTROLS_TEXT)) },
+        { label: '환경 설정', desc: '음량 · 화면 흔들림 · 깜빡임 줄이기 · 글자 속도 · 조작법', onSelect: () => openSettings() },
         { label: '상태 효과 안내', desc: '공포·패닉·희망 등 버프/디버프 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
         ...(this.rule ? [{ label: '근무 수칙', desc: '오늘 밤의 근무 수칙표를 다시 본다.', onSelect: () => Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), null, { paper: true })) }] : []),
         { label: '철수 (임무 포기)', col: '#ff8a8a', desc: '즉시 현장을 떠난다. 보수 없음, 신뢰 -5. 주운 아티팩트는 챙긴다.', onSelect: (m) => { m.close(); this.finish('retreat'); } },
@@ -964,6 +1035,7 @@ class MissionScene {
         case 'artifact': {
           const a = ARTIFACTS[k.id];
           this.run.found.push(k.id);
+          codexAdd(this.s, 'art', k.id);
           this.addHope(8);
           Sound.play('artifact');
           this.toast(`아티팩트 획득: ${a.name} [${RARITY[a.rarity].name}]`, RARITY[a.rarity].col);
@@ -1050,6 +1122,8 @@ class MissionScene {
     const inAr = ar && (ar.y0 == null ? true : p.onGround && p.cx > ar.x0 + 24 && p.cx < ar.x1 - 24 && p.cy > ar.y0 + 16 && p.cy < ar.y1);
     if (ar && !this.arenaActive && !this.objState.bossDone && !ar.finale && inAr && p.x > ar.x0 + 40) this.startArena();
     if (ar && ar.finale && !this.finaleTalked && inAr && p.x > ar.x0 + 60) this.startFinaleTalk();
+    // 체크포인트에서 되살아난 뒤 최종전을 다시 시작한다
+    if (ar && ar.finale && this.finaleRoute && !this.locked && !this.arenaActive && !this.boss && !this.objState.bossDone && inAr && p.x > ar.x0 + 40) this.startArena();
     // 방 이동 기록 (미니맵) + 위에서 떨어져 들어왔을 때 안내
     if (this.gen.map) {
       const rx = Math.floor(p.cx / (RW * TS)), ry = Math.floor(p.cy / (RH * TS));
@@ -1385,7 +1459,7 @@ class MissionScene {
       t.fillRect(x - r, y - r, r * 2, r * 2);
     };
     const p = this.player;
-    const flick = Math.random() < 0.03 ? 0.85 : 1;
+    const flick = !Settings.calm && Math.random() < 0.03 ? 0.85 : 1;
     light(p.cx - cam.x, p.cy - cam.y, this.D.light * flick);
     for (const k of this.pickups) if (k.type === 'artifact' && k.layer === 'back') light(k.x + 7 - cam.x, k.by + 7 - cam.y, 22);
     for (const o of this.interacts) if (o.layer !== 'front' && !o.done) light(o.x + o.w / 2 - cam.x, o.y + o.h / 2 - cam.y, o.type === 'cause' || o.type === 'core' ? 60 : 30);
@@ -1400,11 +1474,12 @@ class MissionScene {
     const p = this.player;
     if (L === 'back') {
       ctx.globalAlpha = 1;
-      ctx.drawImage(this.noise, rndi(-40, 0), rndi(-40, 0), VW + 40, VH + 40);
+      if (Settings.calm) { ctx.globalAlpha = 0.5; ctx.drawImage(this.noise, -20, -20, VW + 40, VH + 40); ctx.globalAlpha = 1; }
+      else ctx.drawImage(this.noise, rndi(-40, 0), rndi(-40, 0), VW + 40, VH + 40);
       ctx.fillStyle = 'rgba(120,0,30,0.10)'; ctx.fillRect(0, 0, VW, VH);
       for (let y = 0; y < VH; y += 3) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, y, VW, 1); }
     }
-    if (this.glitchT > 0) {
+    if (this.glitchT > 0 && !Settings.calm) {
       const t = Gfx.tctx;
       t.clearRect(0, 0, VW, VH);
       t.drawImage(Gfx.buf, 0, 0);
@@ -1415,7 +1490,7 @@ class MissionScene {
     }
     if (this.flipFx > 0) {
       const f = this.flipFx / 16;
-      if (this.flipFx > 12) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VW, VH); ctx.globalCompositeOperation = 'source-over'; }
+      if (this.flipFx > 12 && !Settings.calm) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, VW, VH); ctx.globalCompositeOperation = 'source-over'; }
       const t = Gfx.tctx;
       t.clearRect(0, 0, VW, VH);
       t.drawImage(Gfx.buf, 0, 0);
@@ -1423,17 +1498,21 @@ class MissionScene {
         const dy = Math.round(Math.sin(x * 0.3 + this.flipFx) * 10 * f);
         ctx.drawImage(Gfx.tmp, x, 0, 24, VH, x, dy, 24, VH);
       }
-      ctx.fillStyle = L === 'back' ? `rgba(255,40,80,${0.25 * f})` : `rgba(255,255,255,${0.25 * f})`;
+      ctx.fillStyle = L === 'back' ? `rgba(255,40,80,${(Settings.calm ? 0.1 : 0.25) * f})` : `rgba(255,255,255,${(Settings.calm ? 0.1 : 0.25) * f})`;
       ctx.fillRect(0, 0, VW, VH);
     }
     // 근무 수칙 이벤트 연출
     if (this.rule) {
       const E = this.rule.ev;
-      if (E.flicker.t > 0 && ((this.time >> 2) % 3 === 0 || Math.random() < 0.15)) { ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, VW, VH); }
+      if (E.flicker.t > 0) {
+        // 깜빡임 줄이기: 점멸 대신 일정한 어둠 + 경고 문구
+        if (Settings.calm) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, VW, VH); Gfx.text(ctx, '— 조명이 깜빡인다 —', VW / 2, 34, '#f2d040', { align: 'center', small: true }); }
+        else if ((this.time >> 2) % 3 === 0 || Math.random() < 0.15) { ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, VW, VH); }
+      }
       if (E.three.t > 0) {
         ctx.fillStyle = 'rgba(30,0,10,0.35)'; ctx.fillRect(0, 0, VW, VH);
         if (!this.big3) this.big3 = Gfx.bigText('03:00', '#ff3a5a', 4);
-        ctx.globalAlpha = 0.6 + Math.sin(this.time * 0.3) * 0.3;
+        ctx.globalAlpha = Settings.calm ? 0.75 : 0.6 + Math.sin(this.time * 0.3) * 0.3;
         ctx.drawImage(this.big3, Math.round((VW - this.big3.width) / 2), 70);
         ctx.globalAlpha = 1;
       }
@@ -1564,12 +1643,12 @@ class MissionScene {
     if (truth) Gfx.text(ctx, '간파 — 진짜 수치', 7, chips.length ? 82 : 72, '#62d6e8', { small: true });
     // 교란 화면 효과 (HUD 영역만 깨진다)
     if (jv) {
-      for (let i = 0; i < Math.ceil(jv * 5); i++) {
+      for (let i = 0; i < (Settings.calm ? 0 : Math.ceil(jv * 5)); i++) {
         if (Math.random() < 0.5) continue;
         const gy = rndi(0, 74), gh = rndi(1, 4);
         ctx.drawImage(Gfx.buf, 0, gy, 120, gh, rndi(-6, 6) * jv, gy, 120, gh);
       }
-      for (let i = 0; i < jv * 40; i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(98,214,232,0.35)' : 'rgba(255,58,90,0.3)'; ctx.fillRect(rndi(0, 118), rndi(0, 76), rndi(1, 4), 1); }
+      for (let i = 0; i < jv * (Settings.calm ? 8 : 40); i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(98,214,232,0.35)' : 'rgba(255,58,90,0.3)'; ctx.fillRect(rndi(0, 118), rndi(0, 76), rndi(1, 4), 1); }
     }
     // ── 우상단: 목표 ──
     const ob = OBJECTIVES[this.obj] || { name: '최종 결재', col: '#ff5a6a' };
