@@ -9,6 +9,7 @@ const SPEAKERS = {
   landlord: { name: '집주인', face: 'landlord', col: '#c8a8d8' },
   phone: { name: '틈새 알림', face: null, col: '#62d6e8' },
   '': { name: '', face: null, col: '#f4f0e6' },
+  fakeSeo: { name: '서경 팀장', face: 'seo', col: '#c8d0e0' },
 };
 
 const PROLOGUE = [

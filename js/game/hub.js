@@ -153,6 +153,9 @@ class HubScene {
         : [['', '아침 일찍, 청명 감사팀이 옥탑방을 뒤졌다.'], ['', '아무것도 나오지 않았다. 의심도가 크게 내려갔다.']];
       Sound.play(ev.caught ? 'deny' : 'select');
       Game.push(new DialogModal(lines, next));
+    } else if (ev.type === 'reboot') {
+      Sound.play('static');
+      Game.push(new DialogModal([['', '밤새 휴대폰 화면이 지직거렸다. 껐다 켜니 잡음은 사라졌다.'], ['', '...어젯밤 받은 이상한 메시지는, 그대로 남아 있다.']], next));
     } else if (ev.type === 'rank') {
       Sound.play('levelup');
       Game.push(new DialogModal([['seo', `축하해요. 오늘부터 하람 씨는 "${RANKS[ev.rank].name}"예요.`], ['', `승급 포인트 +2. 청명관리 사무소에서 "승급 교육"을 받을 수 있다.`]], next));
@@ -259,7 +262,8 @@ class HubScene {
     Gfx.text(ctx, todo, 16, VH - 15, C.text, { small: true });
     let nx = 8;
     if (s.statPoints > 0) nx += UI.pill(ctx, nx, VH - 30, '승급 포인트 ' + s.statPoints, COL.green, { dot: true }) + 4;
-    if ((s.sp || 0) > 0) UI.pill(ctx, nx, VH - 30, '마음 조각 ' + s.sp, '#a99cff', { dot: true });
+    if ((s.sp || 0) > 0) nx += UI.pill(ctx, nx, VH - 30, '마음 조각 ' + s.sp, '#a99cff', { dot: true }) + 4;
+    if (s.phoneGlitch) UI.pill(ctx, nx, VH - 30, '휴대폰 신호 불량', '#62d6e8', { dot: true });
     const un = unreadCount(s);
     UI.hints(ctx, VW - 8, VH - 15, [['V', un ? `휴대폰 (${un})` : '휴대폰']], 'right');
   }
@@ -303,14 +307,14 @@ class HubScene {
         const stars = '★'.repeat(j.diff) + '☆'.repeat(5 - j.diff);
         const locked = j.locked;
         return {
-          label: (j.story ? '◆ ' : '') + j.title.replace(/^\[.*?\] /, ''),
-          sub: `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
-          subCol: (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
+          label: (j.story ? '◆ ' : '') + (j.jammed ? glitchText(j.title, 0.15) : j.title.replace(/^\[.*?\] /, '')),
+          sub: j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
+          subCol: j.jammed ? '#62d6e8' : (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
           right: j.pay ? won(j.pay) : '???',
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
-            `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
+            j.jammed ? `출처를 알 수 없는 공고. 보수는 1.6배지만 현장 전체에 통신 교란이 깔려 있다. (${(OBJECTIVES[j.obj] || { name: '최종' }).name})` : `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
           onSelect: () => this.confirmJob(j),
         };
       }),
@@ -336,7 +340,11 @@ class HubScene {
         sub: m.text,
         right: 'D' + m.day,
         col: m.read ? '#a29eb8' : SPEAKERS[m.from].col,
-        onSelect: () => { m.read = true; Game.push(new TextView(SPEAKERS[m.from].name, m.text, null, { titleCol: SPEAKERS[m.from].col })); },
+        onSelect: () => {
+          m.read = true;
+          if (m.fake) { Sound.play('static'); Game.push(new TextView('서경 팀장 · 발신 번호 없음', m.text + '\n\n— 이 메시지는 서버에 기록이 없습니다 —', null, { titleCol: '#ff5a6a' })); }
+          else Game.push(new TextView(SPEAKERS[m.from].name, m.text, null, { titleCol: SPEAKERS[m.from].col }));
+        },
       })) : [{ label: '(메시지 없음)', disabled: true }]),
     }));
     // 목록을 열면 첫 메시지는 읽음 처리하지 않는다 (선택 시 읽음)

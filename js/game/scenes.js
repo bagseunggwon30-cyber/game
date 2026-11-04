@@ -163,6 +163,11 @@ class ResultScene {
     const rankBefore = s.lastRank;
     s.workedToday = true;
     s.timeOfDay = 'night';
+    if ((run.jamTime || 0) > 600) {
+      s.phoneGlitch = true;
+      s.messages.unshift({ from: 'fakeSeo', text: pickR(FAKE_MESSAGES), day: s.day, read: false, fake: true });
+      this.log.push(['통신 교란 후유증', '휴대폰 오염', COL.cyan]);
+    }
     if (this.result === 'success') {
       let pay = job.pay;
       const noDmg = run.damage === 0;

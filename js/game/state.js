@@ -181,6 +181,14 @@ function genJobs(s) {
     jobs.push(makeJob(s, rng, themes[i], obj, rng.int(lo, hi)));
   }
   jobs.sort((a, b) => a.diff - b.diff);
+  // 교란을 겪은 뒤에는 출처 불명 공고가 끼어든다
+  if ((s.flags.jamSeen || s.contamination >= 35) && rng.chance(0.4)) {
+    const j = makeJob(s, rng, rng.pick(REGULAR_THEMES), rng.pick(objs), clamp(r + 2, 2, 5));
+    j.title = rng.pick(FAKE_JOB_TITLES);
+    j.pay = Math.round(j.pay * 1.6 / 1000) * 1000;
+    j.jammed = true;
+    jobs.push(j);
+  }
   return jobs;
 }
 
@@ -227,6 +235,7 @@ function advanceDay(s) {
       }
     }
   }
+  if (s.phoneGlitch) { s.phoneGlitch = false; ev.push({ type: 'reboot' }); }
   s.jobs = genJobs(s);
   checkMessages(s);
   return ev;

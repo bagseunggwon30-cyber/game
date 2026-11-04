@@ -249,6 +249,12 @@ class Menu {
       if (it.sub) Gfx.text(ctx, Gfx.fit(ctx, it.sub, S.sw - 18, { small: true }), S.sx + 9, yy + 12, it.disabled ? C.mute : it.subCol || C.mute, { small: true });
       yy += RH;
     }
+    // 스크롤 표시
+    if (this.items.length > this.maxVis) {
+      const more = this.items.length - this.top - rows;
+      if (more > 0) Gfx.text(ctx, `▼ ${more}개 더`, S.sx + S.sw / 2, yy, C.mute, { small: true, align: 'center' });
+      if (this.top > 0) Gfx.text(ctx, '▲', S.sx + S.sw - 8, hy + 20, C.mute, { small: true, align: 'right' });
+    }
     // 상세
     const it = this.items[this.sel];
     if (this.o.desc && it && it.desc) {
@@ -257,6 +263,7 @@ class Menu {
       ctx.fillStyle = appCol; ctx.fillRect(S.sx, dy, S.sw, 1);
       Gfx.para(ctx, it.desc, S.sx + 7, dy + 4, S.sw - 14, '#d8d4e8', { small: true, maxLines: 3 });
     }
+    if (Game.state && Game.state.phoneGlitch) phoneGlitchOverlay(ctx, S, this.t);
     UI.hints(ctx, px + W + 8, py + H - 12, [['Z', '열기'], ['X', '뒤로']], 'left');
   }
 }
@@ -343,7 +350,10 @@ class StatusView {
       // 오른쪽 게이지
       const gx = x + w - 112, gy = T;
       UI.card(ctx, gx - 8, gy - 2, 112, 128, { fill: 'rgba(255,255,255,0.03)', border: C.line });
+      const glitch = s.phoneGlitch;
+      if (glitch && (!this.lieT || --this.lieT <= 0)) { this.lieT = 50; this.lie = [rnd(0, 100), rnd(0, 100)]; }
       const meter = (label, v, max, col, i) => {
+        if (glitch && i < 2) v = this.lie[i];
         const yy2 = gy + 4 + i * 24;
         Gfx.text(ctx, label, gx, yy2, col, { small: true });
         Gfx.text(ctx, `${Math.round(v)}`, gx + 94, yy2, C.sub, { small: true, align: 'right' });
@@ -356,6 +366,7 @@ class StatusView {
       Gfx.text(ctx, `제출 ${s.submitted} · 임무 ${s.record.missions}`, gx, gy + 90, C.sub, { small: true });
       Gfx.text(ctx, `마음 지도 ${s.skills.length - 1} · SP ${s.sp || 0}`, gx, gy + 102, '#a99cff', { small: true });
       if (s.statPoints > 0) Gfx.text(ctx, `승급 포인트 ${s.statPoints}`, gx, gy + 114, COL.green, { small: true });
+      if (glitch) UI.pill(ctx, gx + 94, gy - 14, '신호 불량 — 값 신뢰 불가', '#62d6e8', { align: 'right', dot: true });
     } else {
       let yy = T;
       const head = (t, col) => { ctx.fillStyle = col; ctx.fillRect(L, yy + 3, 2, 8); Gfx.text(ctx, t, L + 6, yy, C.text, { bold: true }); yy += 16; };
@@ -403,7 +414,9 @@ class PhoneHome {
     const px = Math.round((VW - W) / 2), py = Math.round((VH - H) / 2);
     const S = drawPhoneFrame(ctx, px, py, W, H, '');
     // 시계
-    if (!this.clock || this.clockKey !== this.timeText) { this.clock = Gfx.bigText(this.timeText, '#f4f0e6', 2, FONT_B, '#14102a'); this.clockKey = this.timeText; }
+    const glitch = Game.state && Game.state.phoneGlitch;
+    const tt = glitch && this.t % 80 < 25 ? (this.t % 160 < 80 ? '03:00' : '■■:■■') : this.timeText;
+    if (!this.clock || this.clockKey !== tt) { this.clock = Gfx.bigText(tt, glitch && tt !== this.timeText ? '#ff5a6a' : '#f4f0e6', 2, FONT_B, '#14102a'); this.clockKey = tt; }
     ctx.drawImage(this.clock, Math.round(px + W / 2 - this.clock.width / 2), S.sy + 14);
     Gfx.text(ctx, this.dateText, px + W / 2, S.sy + 48, '#c8c4e0', { small: true, align: 'center' });
     // 앱 격자
@@ -420,7 +433,7 @@ class PhoneHome {
         UI.card(ctx, ix + 15, iy - 4, Gfx.measure(ctx, b, { small: true }) + 7, 10, { fill: '#e0474c', border: false });
         Gfx.text(ctx, b, ix + 18, iy - 4, '#ffffff', { small: true });
       }
-      Gfx.text(ctx, a.name, cx + cw / 2, cy + 26, sel ? '#ffffff' : '#b8b4cc', { small: true, align: 'center' });
+      Gfx.text(ctx, glitch && (this.t + i * 13) % 120 < 10 ? glitchText(a.name, 0.8) : a.name, cx + cw / 2, cy + 26, sel ? '#ffffff' : '#b8b4cc', { small: true, align: 'center' });
     });
     // 선택 앱 설명
     const a = this.apps[this.sel];
@@ -429,6 +442,7 @@ class PhoneHome {
       ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(S.sx, dy, S.sw, 24);
       Gfx.para(ctx, a.desc, S.sx + 7, dy + 1, S.sw - 14, '#d8d4e8', { small: true, maxLines: 2, lh: 11 });
     }
+    if (glitch) phoneGlitchOverlay(ctx, S, this.t);
     UI.hints(ctx, px + W + 8, py + H - 12, [['Z', '열기'], ['X', '닫기']], 'left');
   }
 }

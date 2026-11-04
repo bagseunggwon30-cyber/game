@@ -14,7 +14,7 @@ class MissionScene {
     this.gen = generateMission({
       theme: job.theme, obj: job.obj, diff: job.diff, seed: job.seed, luk: this.s.stats.luk,
       tutorial: this.story && this.story.tutorial, doc: this.story ? this.story.doc : null, randomDoc,
-      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt,
+      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt, jammed: !!job.jammed,
     });
     this.lvl = this.gen.lvl;
     this.tiles = buildTiles(job.theme);
@@ -33,6 +33,11 @@ class MissionScene {
     this.locked = false;
     this.run = { found: [], cash: 0, docs: [], kills: 0, damage: 0, time: 0, boss: false };
     this.lastHopeUsed = false;
+    this.run.jamTime = 0;
+    // 통신 교란 상태
+    this.jamBase = job.jammed ? 0.5 : 0;
+    this.jam = { v: 0, src: 0, immune: 0, hackT: 0, lieT: 0, targets: {}, swap: false, fakeChips: [], hide: {}, objLie: null, layerLie: false, toastT: 420, eventT: rndi(2400, 4200), eventLeft: 0 };
+    this.disp = { hp: this.player.hp, san: this.player.san, fear: 0 };
     this.objState = { clues: 0, cluesTotal: this.interacts.filter((o) => o.type === 'clue').length, anchors: 0, anchorsTotal: this.interacts.filter((o) => o.type === 'rift').length, complete: false, bossDone: false };
     this.ending = false;
     this.backTime = 0;
@@ -210,6 +215,63 @@ class MissionScene {
     }
     if (panic && this.time % 20 === 0) { Gfx.shake(1, 6); if (this.time % 40 === 0) Sound.play('heart'); }
   }
+  // ───── 통신 교란: 휴대폰(HUD)이 거짓말을 한다 ─────
+  updateJam() {
+    const p = this.player, J = this.jam;
+    let src = this.jamBase;
+    if (p.layer === 'back') {
+      for (const z of this.gen.jamZones || []) if (p.cx > z.x0 && p.cx < z.x1) src = Math.max(src, 0.75);
+      let n = 0;
+      for (const e of this.enemies) if (!e.dead && e.def.jam && e.layer === 'back' && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 100) n++;
+      src = Math.max(src, Math.min(0.9, n * ENEMIES.notif.jam));
+      if (J.eventLeft > 0) { J.eventLeft--; src = Math.max(src, 0.6); }
+      else if (this.diff >= 4 && --J.eventT <= 0) { J.eventLeft = 360; J.eventT = rndi(2400, 4200); }
+    }
+    if (J.hackT > 0) { J.hackT--; src = Math.max(src, 0.9); }
+    if (this.s.gear.includes('shieldcase')) src *= 1 - GEAR.shieldcase.jamRes;
+    if (p.layer === 'front') src *= 0.5;
+    if (J.immune > 0) { J.immune--; src = 0; }
+    J.src = src;
+    J.v = src > J.v ? Math.min(src, J.v + 0.02) : Math.max(src, J.v - (p.layer === 'front' ? 0.012 : 0.006));
+    if (J.v < 0.12) {
+      J.targets = {}; J.swap = false; J.fakeChips = []; J.hide = {}; J.objLie = null; J.layerLie = false;
+    } else {
+      this.run.jamTime++;
+      this.s.flags.jamSeen = true;
+      if (!this.s.flags.hintJam) { this.s.flags.hintJam = true; this.showHint('통신 교란! 휴대폰 화면(HUD)의 수치·아이콘·알림이 거짓일 수 있다. 화면 효과와 심장 소리는 진짜다.'); }
+      if (--J.lieT <= 0) {
+        J.lieT = rndi(60, 140);
+        const v = J.v;
+        J.targets = {
+          hp: Math.random() < v ? rnd(0.2, 1) * p.maxHp : null,
+          san: Math.random() < v ? rnd(0.1, 1) * p.maxSan : null,
+          fear: Math.random() < v ? rnd(0, 100) : null,
+        };
+        J.swap = v > 0.6 && Math.random() < 0.45;
+        J.fakeChips = v > 0.3 && Math.random() < v ? [pickR(['hope', 'shield', 'rage'])] : [];
+        J.hide = v > 0.4 && Math.random() < v ? { panic: true, frightened: true, halluc: true, erosion: Math.random() < 0.5 } : {};
+        J.objLie = v > 0.45 && Math.random() < 0.35 ? pickR(OBJ_LIES) : null;
+        J.layerLie = v > 0.75 && Math.random() < 0.3;
+      }
+      if (J.v > 0.35 && --J.toastT <= 0) {
+        J.toastT = rndi(480, 840);
+        Game.toast(glitchText(pickR(FAKE_TOASTS), J.v * 0.3), pickR([COL.green, '#f2d040', COL.cyan, UI.C.text]));
+        Sound.play('phone');
+      }
+      if (Math.random() < J.v * 0.015) Sound.play('static');
+    }
+    // 표시값 (거짓 목표를 향해 부드럽게 흔들린다)
+    const truth = this.jamTruth();
+    const show = (key, real) => {
+      const tgt = J.targets[key];
+      const want = truth || tgt == null ? real : lerp(real, tgt, clamp(J.v * 1.25, 0, 1));
+      this.disp[key] = J.v < 0.12 || truth ? real : lerp(this.disp[key], want, 0.07);
+    };
+    show('hp', p.hp); show('san', p.san); show('fear', p.fear);
+  }
+  // '간파' 스킬: 교란 중에도 주기적으로 진짜 수치가 비친다
+  jamTruth() { return this.m.jamSight && this.jam.v >= 0.12 && this.time % 70 < 16; }
+
   // HUD 표시용 상태 목록
   statusChips() {
     const p = this.player, out = [];
@@ -277,6 +339,7 @@ class MissionScene {
       if (it.san) { const v = Math.round(it.san * hm); p.san = Math.min(p.maxSan, p.san + v); this.floatText(p.cx, p.y - 16, 'SAN +' + v, COL.san); }
       if (it.fear) p.fear = Math.max(0, p.fear - it.fear);
       if (it.hope) this.addHope(it.hope);
+      if (it.jamImmune) { this.jam.immune = it.jamImmune * 60; this.jam.v = 0; this.floatText(p.cx, p.y - 16, '신호 차단', '#62d6e8'); }
       if (it.shield) { p.shield += it.shield; this.floatText(p.cx, p.y - 6, '부적 장착', '#f2d040'); }
       Sound.play('item');
     }
@@ -526,6 +589,7 @@ class MissionScene {
     // 정신력 · 공포 · 상태 효과
     if (!p.dead && !this.locked) {
       this.updateMind();
+      this.updateJam();
       const panic = p.st.has('panic');
       if (p.layer === 'back') {
         let mul = this.arenaActive ? 0.5 : 1;
@@ -783,6 +847,19 @@ class MissionScene {
       const x = d.x - cam.x;
       if (x < -60 || x > VW + 10) continue;
       ctx.drawImage(spr, Math.round(x), Math.round(d.y - cam.y));
+    }
+    // 전파 오염 구역
+    for (const z of this.gen.jamZones || []) {
+      const x0 = Math.round(z.x0 - cam.x), x1 = Math.round(z.x1 - cam.x);
+      if (x1 < 0 || x0 > VW) continue;
+      const a = L === 'back' ? 0.16 : 0.05;
+      for (let x = Math.max(0, x0); x < Math.min(VW, x1); x += 3) {
+        if (((x + cam.x) / 3 + this.time) % 7 < 2) { ctx.fillStyle = `rgba(98,214,232,${a})`; ctx.fillRect(x, 0, 1, VH); }
+      }
+      if (L === 'back') {
+        for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(98,214,232,0.5)'; ctx.fillRect(rndi(Math.max(0, x0), Math.min(VW, x1)), rndi(0, VH), rndi(2, 6), 1); }
+        for (const ex of [x0, x1]) if (ex > -10 && ex < VW + 10) { ctx.fillStyle = 'rgba(98,214,232,0.4)'; for (let y = 0; y < VH; y += 6) ctx.fillRect(ex, y, 1, 3); }
+      }
     }
     // 타일
     this.drawTiles(ctx, cam, L);
@@ -1065,51 +1142,78 @@ class MissionScene {
     UI.corner(ctx, 0, 0, 120, 0.6);
     UI.corner(ctx, VW, 0, 110, 0.55);
     UI.corner(ctx, 0, VH, 90, 0.5);
-    // ── 좌상단: 체력 / 정신력 / 공포 ──
+    // ── 좌상단: 체력 / 정신력 / 공포 (휴대폰이 보여 주는 값 — 교란되면 거짓) ──
+    const J = this.jam, jv = J.v >= 0.12 ? J.v : 0, truth = this.jamTruth();
     const panic = p.st.has('panic');
-    if (this.hpGhost == null) this.hpGhost = p.hp;
-    this.hpGhost = this.hpGhost > p.hp ? Math.max(p.hp, this.hpGhost - 0.6) : p.hp;
+    const D = this.disp;
+    if (this.hpGhost == null) this.hpGhost = D.hp;
+    this.hpGhost = this.hpGhost > D.hp ? Math.max(D.hp, this.hpGhost - 0.6) : D.hp;
+    const showPanic = panic && !(J.hide.panic && !truth);
     const rows = [
-      { ic: 'hp', v: p.hp, max: p.maxHp, col: p.hp < p.maxHp * 0.3 && this.time % 30 < 15 ? '#ff8a8a' : '#e8464e', ghost: this.hpGhost / p.maxHp },
-      { ic: 'san', v: p.san, max: p.maxSan, col: p.layer === 'back' ? '#b0a0ff' : '#8f7cff' },
-      { ic: 'fear', v: p.fear, max: 100, col: panic ? (this.time % 10 < 5 ? '#ff3a5a' : '#ffffff') : p.fear >= 50 ? '#ff6a3a' : '#d08a48', ticks: [0.5] },
+      { ic: 'hp', v: D.hp, max: p.maxHp, col: D.hp < p.maxHp * 0.3 && this.time % 30 < 15 ? '#ff8a8a' : '#e8464e', ghost: this.hpGhost / p.maxHp },
+      { ic: 'san', v: D.san, max: p.maxSan, col: p.layer === 'back' ? '#b0a0ff' : '#8f7cff' },
+      { ic: 'fear', v: D.fear, max: 100, col: showPanic ? (this.time % 10 < 5 ? '#ff3a5a' : '#ffffff') : D.fear >= 50 ? '#ff6a3a' : '#d08a48', ticks: [0.5] },
     ];
+    if (J.swap && !truth) { const t = rows[1]; rows[1] = Object.assign({}, rows[2], { ic: 'san', max: 100 }); rows[2] = Object.assign({}, t, { ic: 'fear', max: p.maxSan }); }
     rows.forEach((r, i) => {
       const y = 8 + i * 11;
       ctx.drawImage(UI.icon(r.ic), 7, y - 2);
-      UI.bar(ctx, 20, y + 1, 72, 3, r.v / r.max, r.col, { ghost: r.ghost, ghostCol: 'rgba(255,220,220,0.55)', ticks: r.ticks });
-      const num = r.ic === 'fear' && panic ? '!!' : String(Math.max(0, Math.ceil(r.v)));
-      Gfx.text(ctx, num, 96, y - 3, r.ic === 'fear' && panic ? '#ff3a5a' : C.sub, { small: true });
+      UI.bar(ctx, 20, y + 1, 72, 3, r.v / r.max, truth ? '#62d6e8' : r.col, { ghost: r.ghost, ghostCol: 'rgba(255,220,220,0.55)', ticks: r.ticks });
+      let num = r.ic === 'fear' && showPanic ? '!!' : String(Math.max(0, Math.ceil(r.v)));
+      if (jv && !truth) num = glitchText(num, jv);
+      Gfx.text(ctx, num, 96, y - 3, truth ? '#62d6e8' : r.ic === 'fear' && showPanic ? '#ff3a5a' : C.sub, { small: true });
     });
     // 레이어 배지 + 뒤집기 대기
-    const back = p.layer === 'back';
+    const back = J.layerLie && !truth ? p.layer !== 'back' : p.layer === 'back';
     const lw = UI.pill(ctx, 7, 41, back ? '뒷면' : '표면', back ? '#ff5a8a' : '#d8d4e4', { dot: true });
     const cdF = panic ? 0 : 1 - p.flipCd / this.D.flipCd;
     UI.bar(ctx, 7 + lw + 4, 46, 22, 2, cdF, cdF >= 1 ? C.accent : C.mute);
     if (cdF >= 1 && !panic) UI.keycap(ctx, 7 + lw + 30, 41, 'C');
-    // 상태 효과 아이콘
+    // 상태 효과 아이콘 (교란되면 가짜 버프가 뜨고 진짜 디버프가 숨는다)
+    let chips = this.statusChips();
+    if (jv && !truth) {
+      chips = chips.filter((c) => !J.hide[c.id]);
+      for (const f of J.fakeChips) if (!chips.some((c) => c.id === f)) chips.push({ id: f, label: glitchText(STATUS[f].name, jv), col: STATUS[f].col, frac: 0.5 + Math.sin(this.time * 0.05) * 0.3 });
+    }
     let sx = 7;
-    for (const c of this.statusChips()) {
+    for (const c of chips) {
       UI.statusTile(ctx, sx, 57, c.id, c.frac, c.id === 'erosion' || c.id === 'rage' ? p.st.stacks(c.id) : c.id === 'shield' ? p.shield : 0);
       sx += 15;
     }
-    const chips = this.statusChips();
-    if (chips.length && this.time % 240 < 120) {
-      // 가장 중요한 상태 이름을 잠깐 표시
-      const c = chips[0];
-      Gfx.text(ctx, c.label, 7, 72, c.col, { small: true });
+    if (chips.length && this.time % 240 < 120) Gfx.text(ctx, jv && !truth ? glitchText(chips[0].label, jv * 0.6) : chips[0].label, 7, 72, chips[0].col, { small: true });
+    if (truth) Gfx.text(ctx, '간파 — 진짜 수치', 7, chips.length ? 82 : 72, '#62d6e8', { small: true });
+    // 교란 화면 효과 (HUD 영역만 깨진다)
+    if (jv) {
+      for (let i = 0; i < Math.ceil(jv * 5); i++) {
+        if (Math.random() < 0.5) continue;
+        const gy = rndi(0, 74), gh = rndi(1, 4);
+        ctx.drawImage(Gfx.buf, 0, gy, 120, gh, rndi(-6, 6) * jv, gy, 120, gh);
+      }
+      for (let i = 0; i < jv * 40; i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(98,214,232,0.35)' : 'rgba(255,58,90,0.3)'; ctx.fillRect(rndi(0, 118), rndi(0, 76), rndi(1, 4), 1); }
     }
     // ── 우상단: 목표 ──
     const ob = OBJECTIVES[this.obj] || { name: '최종 결재', col: '#ff5a6a' };
-    const otext = this.objText();
+    let otext = this.objText();
+    if (jv && !truth) otext = J.objLie || glitchText(otext, jv * 0.5);
     ctx.fillStyle = ob.col; ctx.fillRect(VW - 6, 7, 2, 22);
     Gfx.text(ctx, ob.name + ' · ' + THEMES[this.theme].short, VW - 11, 6, ob.col, { small: true, align: 'right' });
-    Gfx.text(ctx, otext, VW - 11, 17, this.objState.complete ? COL.green : C.text, { align: 'right', bold: true });
+    Gfx.text(ctx, otext, VW - 11, 17, this.objState.complete && !J.objLie ? COL.green : C.text, { align: 'right', bold: true });
     if (this.run.found.length) {
       const t = '× ' + this.run.found.length;
       const tw = Gfx.measure(ctx, t, { small: true });
       ctx.drawImage(SPR.icon.frame, VW - 25 - tw, 33);
       Gfx.text(ctx, t, VW - 11, 35, COL.pink, { small: true, align: 'right' });
+    }
+    // 신호 상태 표시 (이것만큼은 정직하다)
+    if (jv || J.immune > 0) {
+      const y = 47;
+      if (J.immune > 0) UI.pill(ctx, VW - 8, y, `호일 차단 ${Math.ceil(J.immune / 60)}`, '#c8ccd8', { align: 'right', dot: true });
+      else {
+        const blink = this.time % 30 < 20;
+        const w = UI.pill(ctx, VW - 8, y, '신호 불량', blink ? '#62d6e8' : '#2f5560', { align: 'right' });
+        ctx.drawImage(UI.icon('st_jam'), VW - 8 - w - 11, y + 1);
+        for (let i = 0; i < 4; i++) { ctx.fillStyle = i < Math.round((1 - jv) * 4) ? '#62d6e8' : 'rgba(98,214,232,0.2)'; ctx.fillRect(VW - 8 - w - 22 + i * 3, y + 9 - i * 2, 2, 2 + i * 2); }
+      }
     }
     // ── 소모품 슬롯 (좌하단 · 터치 기기에선 방향 패드를 피해 좌상단 아래) ──
     const id = this.currentItem();
@@ -1152,7 +1256,7 @@ class MissionScene {
       Gfx.text(ctx, THEMES[this.theme].name, VW / 2, 74, C.text, { align: 'center', bold: true });
       Gfx.text(ctx, (OBJECTIVES[this.obj] ? OBJECTIVES[this.obj].desc : '청명의 최상층으로 향한다.'), VW / 2, 89, C.sub, { align: 'center', small: true });
       const stars = '★'.repeat(this.diff) + '☆'.repeat(5 - this.diff);
-      Gfx.text(ctx, '위험도 ' + stars, VW / 2, 101, '#ff8a8a', { align: 'center', small: true });
+      Gfx.text(ctx, '위험도 ' + stars + ((this.gen.jamZones || []).length ? '  ·  전파 오염 구역 있음' : ''), VW / 2, 101, '#ff8a8a', { align: 'center', small: true });
       ctx.globalAlpha = 1;
     }
     // ── 안내 (TIP) ──
@@ -1172,5 +1276,5 @@ class MissionScene {
   }
 }
 
-const STATUS_HELP_TEXT = '공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)';
+const STATUS_HELP_TEXT = '공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)\n\n신호 불량(통신 교란): 알림 떼·전파 오염 구역·일부 보스가 일으킨다.\nHUD 수치·상태 아이콘·목표·알림이 거짓이 된다. 표면으로 나가면 회복.\n전파 차단 호일, 차폐 폰케이스, 의심 갈래 "간파"로 대응.';
 const CONTROLS_TEXT = '← →  이동        Z / Space  점프 (↓+점프: 발판 내려가기)\nX  공격            C  뒤집기 (표면 ↔ 뒷면)\n↑  조사 / 상호작용   V  소모품 사용   Q 또는 ↓+V  소모품 변경\nShift  대시 (능력 획득 시, 방향키 두 번도 가능)\nEsc  일시정지\n\n메뉴: 방향키 이동, Z/Enter 확인, X/Esc 취소\n허브: ↑ 건물 들어가기, V 휴대폰';

@@ -124,6 +124,10 @@ const Sound = {
       case 'levelup': [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.18, 'square', 0.07, 0, i * 0.08)); break;
       case 'item': this.tone(500, 0.08, 'sine', 0.1, 400); break;
       case 'phone': this.tone(1046, 0.05, 'sine', 0.08); this.tone(1318, 0.05, 'sine', 0.08, 0, 0.08); break;
+      case 'static':
+        this.noise(0.18 + Math.random() * 0.2, 0.12, 3000 + Math.random() * 3000, 0.6, 0, 'highpass');
+        this.tone(2400 + Math.random() * 1200, 0.05, 'square', 0.03, -800, 0.05);
+        break;
       default: break;
     }
   },

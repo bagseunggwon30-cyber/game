@@ -450,6 +450,16 @@ function generateMission(spec) {
   }
   // 천장 전체
   for (let x = 0; x < B.x; x++) for (let y = 0; y < CEIL; y++) lvl.set('both', x, y, T_SOLID);
+  // 전파 오염 구역 (위험도 4 이상, PC방, 수상한 공고)
+  out.jamZones = [];
+  if (!spec.tutorial && (d >= 4 || (spec.theme === 'pcbang' && d >= 2) || spec.jammed)) {
+    const n = spec.jammed ? 3 : d >= 5 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const cx = Math.floor(B.x * (0.2 + 0.6 * (i + 0.5) / n)) + rng.int(-4, 4);
+      const half = rng.int(5, 8);
+      out.jamZones.push({ x0: (cx - half) * TS, x1: (cx + half) * TS });
+    }
+  }
   lvl.trim(B.x);
 
   // ── 아이템 배치 ──

@@ -122,6 +122,7 @@ const ICON_PIX = {
   st_halluc(c, G) { G.px(c, 0, 3, 9, 3, '#ff5a8a'); G.px(c, 1, 2, 7, 5, '#ff5a8a'); G.px(c, 3, 3, 3, 3, '#16141f'); G.px(c, 4, 4, 1, 1, '#ff5a8a'); },
   st_hope(c, G) { G.px(c, 3, 2, 3, 5, '#f2d040'); G.px(c, 2, 3, 5, 3, '#f2d040'); G.px(c, 4, 0, 1, 1, '#f2d040'); G.px(c, 4, 8, 1, 1, '#f2d040'); G.px(c, 0, 4, 1, 1, '#f2d040'); G.px(c, 8, 4, 1, 1, '#f2d040'); G.px(c, 4, 4, 1, 1, '#fff6c8'); },
   st_rage(c, G) { G.px(c, 2, 4, 5, 4, '#ff9a3a'); G.px(c, 3, 2, 3, 2, '#ff9a3a'); G.px(c, 4, 0, 1, 2, '#ff9a3a'); G.px(c, 6, 2, 1, 2, '#ff9a3a'); G.px(c, 4, 5, 1, 2, '#ffe0a0'); },
+  st_jam(c, G) { G.px(c, 4, 2, 1, 7, '#62d6e8'); G.px(c, 2, 0, 1, 3, '#62d6e8'); G.px(c, 6, 0, 1, 3, '#62d6e8'); G.px(c, 3, 1, 3, 1, '#62d6e8'); G.line(c, 0, 8, 8, 0, '#ff3a5a'); },
   st_shield(c, G) { G.px(c, 2, 0, 5, 9, '#f2d040'); G.px(c, 3, 1, 3, 1, '#c41e3a'); G.px(c, 4, 2, 1, 5, '#c41e3a'); G.px(c, 3, 4, 3, 1, '#c41e3a'); },
 };
 
@@ -169,4 +170,27 @@ function appIcon(id) {
     AppIconCache[id] = cv;
   }
   return AppIconCache[id];
+}
+
+// 휴대폰 화면 오염 (통신 교란 후유증)
+function phoneGlitchOverlay(ctx, S, t) {
+  for (let i = 0; i < 6; i++) {
+    const y = S.sy + ((t * 3 + i * 37) % S.sh);
+    ctx.fillStyle = i % 2 ? 'rgba(98,214,232,0.12)' : 'rgba(255,58,90,0.12)';
+    ctx.fillRect(S.sx, y, S.sw, 1 + (i % 3));
+  }
+  if (t % 90 < 6) {
+    const y = S.sy + rndi(10, S.sh - 20);
+    ctx.drawImage(Gfx.buf, S.sx, y, S.sw, 8, S.sx + rndi(-8, 8), y, S.sw, 8);
+  }
+  for (let i = 0; i < 20; i++) { ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.3)'; ctx.fillRect(S.sx + rndi(0, S.sw - 2), S.sy + rndi(0, S.sh - 2), rndi(1, 3), 1); }
+  UI.pill(ctx, S.sx + S.sw - 4, S.sy + S.sh - 14, '신호 불량', '#62d6e8', { align: 'right', dot: true });
+}
+// 글자 일부를 깨뜨린다
+function glitchText(str, v) {
+  if (v <= 0) return str;
+  const subs = ['■', '?', '#', '▒', '░'];
+  let out = '';
+  for (const ch of str) out += ch !== ' ' && Math.random() < v * 0.35 ? subs[(Math.random() * subs.length) | 0] : ch;
+  return out;
 }

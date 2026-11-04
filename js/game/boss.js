@@ -216,6 +216,17 @@ class Boss {
         if (pt === warn) { this.hazards.push({ type: 'beam', y: this.pd.y, t: 18 }); Sound.play('zap'); Gfx.shake(3, 14); }
         return pt > warn + 24;
       }
+      case 'hack': {
+        if (pt === 1) Sound.play('warn');
+        if (pt < 46) { if (pt % 9 === 1) this.hazards.push({ type: 'signal', x: this.cx, y: this.cy, r: 4, t: 40 }); if (pt % 4 < 2) this.flash = 2; return false; }
+        if (pt === 46) {
+          sc.jam.hackT = this.phase2 ? 600 : 420;
+          Sound.play('static'); Sound.play('static');
+          sc.floatText(p.cx, p.y - 22, '신호 간섭!', '#62d6e8');
+          Gfx.shake(2, 12);
+        }
+        return pt > 66;
+      }
       case 'sweep': {
         if (pt === 1) {
           this.pd.dir = Math.random() < 0.5 ? 1 : -1;
@@ -268,7 +279,12 @@ class Boss {
   drawHazards(ctx, cam) {
     const a = this.arena;
     for (const h of this.hazards) {
-      if (h.type === 'mark') {
+      if (h.type === 'signal') {
+        h.r += 3;
+        ctx.globalAlpha = clamp(h.t / 40, 0, 1) * 0.8;
+        Gfx.ring(ctx, Math.round(h.x - cam.x), Math.round(h.y - cam.y), h.r, '#62d6e8');
+        ctx.globalAlpha = 1;
+      } else if (h.type === 'mark') {
         ctx.fillStyle = h.t % 8 < 4 ? this.def.color : 'rgba(255,255,255,0.5)';
         const x = Math.round(h.x - cam.x);
         ctx.fillRect(x - 4, Math.round(a.floorY - cam.y) - 2, 8, 2);

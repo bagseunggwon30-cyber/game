@@ -70,7 +70,7 @@ const ENEMIES = {
   noise: { name: '잡음', hp: 14, dmg: 8, san: 3, spd: 0.55, ai: 'float', w: 12, h: 12, layer: 'back', sprite: 'noise', score: 1 },
   follower: { name: '따라쟁이', hp: 22, dmg: 10, san: 2, spd: 1.05, ai: 'walker', w: 10, h: 22, layer: 'back', sprite: 'follower', score: 2 },
   flyer: { name: '눈알 전단지', hp: 12, dmg: 7, san: 4, spd: 0, ai: 'turret', w: 12, h: 14, layer: 'back', sprite: 'flyer', score: 1 },
-  notif: { name: '읽지 않은 알림', hp: 6, dmg: 6, san: 2, spd: 1.5, ai: 'swarm', w: 10, h: 10, layer: 'back', sprite: 'notif', score: 1 },
+  notif: { name: '읽지 않은 알림', hp: 6, dmg: 6, san: 2, spd: 1.5, ai: 'swarm', w: 10, h: 10, layer: 'back', sprite: 'notif', score: 1, jam: 0.3 },
   watcher: { name: '등 뒤의 사람', hp: 34, dmg: 16, san: 8, spd: 2.4, ai: 'watcher', w: 10, h: 32, layer: 'back', sprite: 'watcher', score: 3 },
   crawler: { name: '기어다니는 손', hp: 10, dmg: 8, san: 1, spd: 1.6, ai: 'hopper', w: 12, h: 8, layer: 'back', sprite: 'crawler', score: 1 },
   echo: { name: '잔향', hp: 12, dmg: 6, san: 4, spd: 0.5, ai: 'drift', w: 10, h: 22, layer: 'front', sprite: 'echo', score: 1 },
@@ -80,11 +80,11 @@ const ENEMIES = {
 const BOSSES = {
   door: { name: '4.5층의 주민', hp: 170, w: 28, h: 40, patterns: ['dash', 'slam', 'summon'], minion: 'follower', color: '#f2d040', title: '말소 대상 · 4.5층', eff: 'fear' },
   receipt: { name: '새벽 3시의 손님', hp: 190, w: 22, h: 44, patterns: ['spread', 'teleport', 'beam'], minion: 'crawler', color: '#ff2a3a', title: '말소 대상 · 새벽 3시의 손님', eff: 'erosion' },
-  speaker: { name: '0호선 안내원', hp: 210, w: 22, h: 44, patterns: ['ring', 'sweep', 'spread'], minion: 'notif', color: '#3af0ff', title: '말소 대상 · 0호선', eff: 'slow' },
+  speaker: { name: '0호선 안내원', hp: 210, w: 22, h: 44, patterns: ['ring', 'sweep', 'spread', 'hack'], minion: 'notif', color: '#3af0ff', title: '말소 대상 · 0호선', eff: 'slow' },
   clock: { name: '자율학습 감독', hp: 210, w: 22, h: 44, patterns: ['rain', 'dash', 'ring'], minion: 'crawler', color: '#c46cff', title: '말소 대상 · 13번째 계단', eff: 'slow' },
-  monitor: { name: '웃는 썸네일', hp: 200, w: 36, h: 32, patterns: ['beam', 'summon', 'rain'], minion: 'notif', color: '#f2f23a', title: '말소 대상 · 웃는 썸네일', flying: true, eff: 'erosion' },
-  flyer: { name: '틈새 공고', hp: 300, w: 22, h: 46, patterns: ['spread', 'summon', 'teleport', 'rain'], minion: 'follower', color: '#f2c230', title: '말소 대상 · 틈새 공고 (구 민재)', eff: 'erosion' },
-  suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명', eff: 'terror' },
+  monitor: { name: '웃는 썸네일', hp: 200, w: 36, h: 32, patterns: ['beam', 'summon', 'rain', 'hack'], minion: 'notif', color: '#f2f23a', title: '말소 대상 · 웃는 썸네일', flying: true, eff: 'erosion' },
+  flyer: { name: '틈새 공고', hp: 300, w: 22, h: 46, patterns: ['spread', 'summon', 'teleport', 'rain', 'hack'], minion: 'follower', color: '#f2c230', title: '말소 대상 · 틈새 공고 (구 민재)', eff: 'erosion' },
+  suit: { name: '청명(淸明)', hp: 480, w: 30, h: 60, patterns: ['beam', 'ring', 'summon', 'slam', 'sweep', 'rain', 'hack'], minion: 'watcher', color: '#ff2a3a', title: '최종 결재 · 청명', eff: 'terror' },
 };
 
 // 아티팩트: rarity 0=흔함 1=희귀 2=이상
@@ -129,6 +129,7 @@ const ITEMS = {
   gimbap: { name: '삼각김밥', icon: 'gimbap', price: 3500, desc: '체력 +15, 정신력 +15. 참치마요.', hp: 15, san: 15 },
   salt: { name: '굵은 소금', icon: 'salt', price: 8000, desc: '던져서 뒷면의 존재에게 큰 피해(30).', throw: 30 },
   charm: { name: '부적 스티커', icon: 'charm', price: 12000, desc: '다음 피해 1회를 막는다. 효과는 진짜다.', shield: 1 },
+  foil: { name: '전파 차단 호일', icon: 'foil', price: 6000, desc: '휴대폰을 호일로 감싼다. 30초 동안 통신 교란을 막는다.', jamImmune: 30 },
 };
 const ITEM_MAX = 6;
 
@@ -145,6 +146,7 @@ const GEAR = {
   lamp: { name: '고휘도 헤드랜턴', desc: '뒷면 시야 +28.', price: 90000, light: 28 },
   boots: { name: '미끄럼방지 안전화', desc: '이동 속도 증가.', price: 130000, speed: 0.25 },
   amulet: { name: '사내 정화 부적', desc: '최대 정신력 +20.', price: 150000, maxSan: 20, rank: 2 },
+  shieldcase: { name: '차폐 폰케이스', desc: '통신 교란의 세기를 절반으로 줄인다.', price: 120000, jamRes: 0.5 },
 };
 
 const RANKS = [
@@ -197,3 +199,24 @@ const CAUSE_TEXT = {
   pcbang: '한 자리의 모니터만 켜져 있다. 화면 속 얼굴이 당신을 보고 웃는다.',
   hq: '거대한 결재함. 안에서 수많은 목소리가 "승인"이라고 속삭인다.',
 };
+
+// ───── 통신 교란: 휴대폰이 보여 주는 거짓말 ─────
+const FAKE_TOASTS = [
+  '[틈새] 공포 수치 정상 (0%)',
+  '[청명] 이 구역은 안전합니다',
+  '[시스템] 희망 버프가 적용되었습니다',
+  '[서경] 지금은 표면으로 나오지 마세요',
+  '[알림] 정신력 100% — 계속 진행하세요',
+  '[알림] 목표 달성! 퇴근하셔도 됩니다',
+  '[틈새] 뒷면 체류 수당 +₩30,000',
+  '[민재] 하람아 이쪽이야 이쪽',
+  '[알림] 읽지 않은 메시지 1',
+];
+const OBJ_LIES = ['임무 완료', '출구 없음', '돌아가', '단서 ■/■', '여기 있어', '뒤를 봐', '앵커 9/3'];
+const FAKE_JOB_TITLES = ['[긴■] ■■ 상주 근무 — 경력 무■', '[구인] 뒷면 야간 상■ 직원', '[틈새] 당신만 볼 수 있는 공고', '[■■] 오늘 바로 출근 · 퇴근 없■'];
+const FAKE_MESSAGES = [
+  '하람 씨, 뒷면에 오래 있을수록 수당이 붙어요. 나오지 마세요.',
+  '오늘 측정된 공포 수치는 정상이에요. 걱정하지 말고 계속 일하세요.',
+  '아티팩트는 전부 흡수해도 괜찮아요. 회사 방침이 바뀌었어요.',
+  '민재 씨가 하람 씨를 찾아요. 틈새에 새로 뜬 공고로 오래요.',
+];
