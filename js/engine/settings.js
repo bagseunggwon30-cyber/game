@@ -6,7 +6,7 @@ const TEXT_SPEED_NAMES = ['느리게', '보통', '빠르게', '즉시'];
 const SHAKE_NAMES = ['끔', '약하게', '보통'];
 
 const Settings = {
-  v: { master: 7, music: 6, sfx: 8, shake: 2, calm: false, textSpeed: 1 },
+  v: { master: 7, music: 6, sfx: 8, shake: 2, calm: false, textSpeed: 1, rumble: true },
   load() {
     const d = Storage.get(SETTINGS_KEY);
     if (d && typeof d === 'object') Object.assign(this.v, d);

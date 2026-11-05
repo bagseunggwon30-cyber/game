@@ -140,6 +140,9 @@ const Sound = {
       case 'charge': this.tone(440, 0.18, 'triangle', 0.06, 440); this.tone(880, 0.12, 'sine', 0.04, 200, 0.08); break;
       case 'heavy': this.noise(0.18, 0.2, 700, 0.8); this.tone(110, 0.22, 'sawtooth', 0.1, -50); break;
       case 'parry': this.tone(1320, 0.08, 'square', 0.07); this.tone(1980, 0.3, 'sine', 0.07, -400, 0.03); this.noise(0.08, 0.15, 5000, 1); break;
+      case 'clap': this.noise(0.05, 0.35, 2600, 0.7); this.noise(0.08, 0.15, 1200, 1, 0.02); break;
+      case 'clank': this.tone(220, 0.25, 'square', 0.06, -40); this.tone(330, 0.2, 'triangle', 0.05, -60, 0.02); this.noise(0.1, 0.15, 3000, 2); break;
+      case 'switch': this.noise(0.03, 0.2, 4000, 1); this.tone(120, 0.5, 'sawtooth', 0.04, 0, 0.03); this.tone(60, 0.6, 'sine', 0.06, 0, 0.03); break;
       case 'static':
         this.noise(0.18 + Math.random() * 0.2, 0.12, 3000 + Math.random() * 3000, 0.6, 0, 'highpass');
         this.tone(2400 + Math.random() * 1200, 0.05, 'square', 0.03, -800, 0.05);

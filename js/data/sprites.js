@@ -247,6 +247,17 @@ function buildEnemySprites() {
     G.px(c, 5, 4, 4, 1, '#b89888');
   }, { outlineColor: '#3a1a1a' }));
   SPR.crawlerL = SPR.crawler.map((f) => G.flipH(f));
+  // 귀 기울이는 것: 눈이 없고 귀가 큰 마른 형체
+  SPR.listener = [0, 1].map((f) => G.sprite(14, 30, (c) => {
+    G.px(c, 4, 9, 6, 15, '#d8d0c0'); G.px(c, 5, 24, 2, 6, '#b8b0a0'); G.px(c, 8, 24 - f, 2, 6 + f, '#b8b0a0');
+    G.circle(c, 7, 5, 4, '#e8e0d0');
+    G.px(c, 0, 1 + f, 3, 7, '#e8e0d0'); G.px(c, 11, 1 + f, 3, 7, '#e8e0d0'); G.px(c, 1, 3 + f, 1, 3, '#a89888'); G.px(c, 12, 3 + f, 1, 3, '#a89888');
+    G.px(c, 5, 7, 4, 1, '#3a2a2a');
+    G.line(c, 4, 11, 1, 19 + f, '#d8d0c0', 1); G.line(c, 9, 11, 13, 19 - f, '#d8d0c0', 1);
+  }, { outlineColor: '#1a1410' }));
+  SPR.listenerL = SPR.listener.map((f) => G.flipH(f));
+  // 길 잃은 아이 (뒷면의 미아)
+  SPR.child = buildHumanSet({ hair: '#3a2a20', skin: '#f4d0b0', skinShade: '#d8b090', eye: '#14101c', shirt: '#ffb8c8', vest: '#ffb8c8', vestDark: '#e8909a', strip: '#ffffff', pants: '#5a6aa8', pantsDark: '#4a5a90', shoes: '#f4f0e6' }, { cap: false, vest: false }, '#2a1418');
 
   // 병원: 맨발의 환자 / 떠도는 링거
   SPR.patient = buildHumanSet({ hair: '#2a2a2a', skin: '#d8dcd0', skinShade: '#b4b8ac', eye: '#0b0b10', shirt: '#9ab8c8', vest: '#9ab8c8', vestDark: '#7a98a8', strip: '#c8d8e0', pants: '#9ab8c8', pantsDark: '#7a98a8', shoes: '#d8dcd0' }, { cap: false, vest: false }, '#1a2a2a');
@@ -500,6 +511,7 @@ function buildPortraits() {
     ryu: G.sprite(34, 34, (c) => face(c, { hair: '#6a6a74', skin: '#e2b896', skinShade: '#bf9474', shirt: '#30323e' }, { glasses: true, collar: '#3a3a48' })),
     k: G.sprite(34, 34, (c) => { face(c, { hair: '#2a2a30', skin: '#eac09a', skinShade: '#c99a78', shirt: '#c84a4a' }, { bangs: true, smile: true }); G.px(c, 7, 2, 20, 5, '#3a3a48'); G.px(c, 5, 12, 3, 7, '#1a1a24'); G.px(c, 26, 12, 3, 7, '#1a1a24'); G.px(c, 6, 6, 1, 7, '#1a1a24'); G.px(c, 27, 6, 1, 7, '#1a1a24'); }),
     landlord: G.sprite(34, 34, (c) => face(c, { hair: '#8a8a8a', skin: '#e8b890', skinShade: '#c09070', shirt: '#7a5a8a' }, { tired: true, smile: false })),
+    guard: G.sprite(34, 34, (c) => { face(c, { hair: '#5a5a5a', skin: '#d8a880', skinShade: '#b88860', shirt: '#4a5a4a' }, { collar: '#2a3a2a', tired: true }); G.px(c, 7, 2, 20, 4, '#2a3a2a'); G.px(c, 6, 5, 22, 2, '#1a2a1a'); G.px(c, 15, 3, 4, 2, '#f2c230'); }),
   };
 }
 
@@ -541,6 +553,13 @@ const ICON_DRAW = {
   rulebook(c, G) { G.px(c, 3, 1, 9, 12, '#ece4c8'); for (let i = 0; i < 5; i++) G.px(c, 4, 3 + i * 2, 6 - (i % 2), 1, '#5a5a6a'); G.line(c, 4, 12, 10, 10, '#c41e3a'); G.px(c, 3, 1, 9, 1, '#a8885a'); },
   redknob(c, G) { G.circle(c, 6, 6, 4, '#c41e3a'); G.px(c, 5, 5, 2, 2, '#ff8a8a'); G.px(c, 9, 6, 4, 2, '#8a8a9a'); G.px(c, 12, 5, 1, 4, '#6a6a7a'); },
   silentrec(c, G) { G.px(c, 2, 3, 10, 8, '#2a2a34'); G.px(c, 3, 4, 8, 3, '#c8c4b4'); G.circle(c, 4, 9, 1, '#e5383b'); G.px(c, 8, 8, 3, 2, '#5a5a6a'); },
+  whistle(c, G) { G.px(c, 2, 5, 9, 5, '#c8ccd8'); G.circle(c, 9, 8, 3, '#c8ccd8'); G.px(c, 3, 6, 6, 1, '#ffffff'); G.px(c, 0, 6, 2, 2, '#8a8a9a'); G.line(c, 1, 6, 6, 1, '#d8281e', 1); },
+  keycard(c, G) { G.px(c, 2, 2, 10, 8, '#e8ecf4'); G.px(c, 2, 2, 10, 2, '#3a5aa8'); G.px(c, 4, 6, 3, 3, '#8a8e9a'); G.px(c, 8, 6, 3, 1, '#3a3e4a'); G.px(c, 6, 0, 2, 3, '#62d6e8'); },
+  stapler(c, G) { G.px(c, 1, 7, 12, 4, '#2a2a30'); G.px(c, 1, 5, 11, 2, '#c8281e'); G.px(c, 10, 9, 3, 2, '#8a8a9a'); G.px(c, 4, 11, 2, 1, '#a8121e'); },
+  mug(c, G) { G.px(c, 2, 3, 8, 9, '#f4f0e6'); G.px(c, 10, 5, 2, 5, '#f4f0e6'); G.px(c, 3, 4, 6, 1, '#5a3a1a'); G.px(c, 3, 7, 6, 2, '#3a5aa8'); G.px(c, 4, 0, 1, 2, '#c8c8d0'); G.px(c, 7, 1, 1, 2, '#c8c8d0'); },
+  valve(c, G) { G.ring(c, 7, 7, 5, '#a8121e'); G.px(c, 2, 6, 11, 2, '#a8121e'); G.px(c, 6, 2, 2, 11, '#a8121e'); G.px(c, 6, 6, 2, 2, '#6a6a60'); },
+  fuse(c, G) { G.px(c, 3, 5, 8, 4, '#d8d4c8'); G.px(c, 1, 6, 2, 2, '#c8a04a'); G.px(c, 11, 6, 2, 2, '#c8a04a'); G.px(c, 5, 6, 4, 2, '#2a2a26'); G.px(c, 6, 4, 1, 1, '#ff7a2a'); },
+  earplug(c, G) { G.circle(c, 7, 7, 4, '#ff9a3a'); G.px(c, 6, 3, 2, 2, '#ffd27a'); G.px(c, 9, 9, 3, 3, '#e8703a'); },
   idcard(c, G) { G.px(c, 2, 1, 10, 12, '#ece8e0'); G.circle(c, 7, 5, 2, '#b8202e'); G.px(c, 4, 9, 6, 1, '#3a3a48'); G.px(c, 4, 11, 4, 1, '#3a3a48'); },
   doc(c, G) { G.px(c, 3, 1, 8, 12, '#ece8dc'); for (let i = 0; i < 4; i++) G.px(c, 4, 3 + i * 2, 6 - (i % 2) * 2, 1, '#6a6a7a'); G.px(c, 8, 10, 2, 2, '#c41e3a'); },
   cash(c, G) { G.px(c, 1, 3, 12, 8, '#e8e0c8'); G.px(c, 1, 3, 12, 2, '#c8b890'); G.px(c, 5, 6, 4, 3, '#6aa86a'); },

@@ -441,7 +441,7 @@ function buildRoomMap(spec, seed) {
   const sp = floorSpot(start, false, 'both', false) || { x: start.ox + 3, y: start.oy + RH - 2 };
   out.start = { x: wx(sp.x + 1), y: wx(sp.y + 1) - 22 };
   out.interacts.push({ type: 'entry', x: wx(sp.x) - 4, y: wx(sp.y + 1) - 32, w: 24, h: 32, layer: 'both' });
-  const needExit = finalObj !== 'descend';
+  const needExit = finalObj !== 'descend' && finalObj !== 'escort';   // 배웅은 입구로 돌아간다
   let exitSpot = null;
   if (needExit) {
     exitSpot = floorSpot(goal, true, 'both', false);
@@ -517,6 +517,33 @@ function buildRoomMap(spec, seed) {
         if (m) out.enemies.push({ type: 'smiler', x: wx(m.x) + 2, y: wx(m.y + 1) - 22, layer });
       }
     }
+  } else if (finalObj === 'lights') {
+    // 방마다 전등 스위치 (표면), 끝방에 분전반
+    const rs = spread(Math.min(4, 2 + Math.floor(d / 2)));
+    for (const r of rs) {
+      const s2 = objSpot(r, 'front') || floorSpot(r, false, 'both', false);
+      if (!s2) return fail('switchSpot');
+      out.interacts.push({ type: 'switch', x: wx(s2.x), y: wx(s2.y + 1) - 24, w: 16, h: 24, layer: 'front', cell: [r.gx, r.gy] });
+      targets.push([s2.x, s2.y, 'front']);
+    }
+    const c = floorSpot(goal, false, 'both') || objSpot(goal, 'front');
+    if (!c) return fail('breakerSpot');
+    out.interacts.push({ type: 'breaker', x: wx(c.x) - 4, y: wx(c.y + 1) - 34, w: 24, h: 34, layer: 'both', cell: [goal.gx, goal.gy] });
+    targets.push([c.x, c.y, 'front']);
+  } else if (finalObj === 'echo') {
+    // 차단기: 경로 중간의 곁가지 방 우선 (출구는 끝방, 차단기를 올려야 열린다)
+    const r = deadEnds.length ? rng.pick(deadEnds) : middle[Math.floor(middle.length * 0.6)] || goal;
+    const c = floorSpot(r, rng.chance(0.5), 'both') || objSpot(r, 'front');
+    if (!c) return fail('breakerSpot');
+    out.interacts.push({ type: 'breaker', x: wx(c.x) - 4, y: wx(c.y + 1) - 34, w: 24, h: 34, layer: 'both', cell: [r.gx, r.gy] });
+    targets.push([c.x, c.y, 'front']);
+  } else if (finalObj === 'escort') {
+    // 끝방 뒷면에 길 잃은 아이
+    const c = floorSpot(goal, true, 'back') || objSpot(goal, 'back');
+    if (!c) return fail('childSpot');
+    out.child = { x: wx(c.x) + 3, y: wx(c.y + 1) - 18, layer: 'back' };
+    out.interacts.push({ type: 'child', x: wx(c.x) - 2, y: wx(c.y + 1) - 22, w: 18, h: 22, layer: 'back' });
+    targets.push([c.x, c.y, 'back']);
   } else if (finalObj === 'descend') {
     const c = floorSpot(goal, true, 'back') || objSpot(goal, 'back');
     if (!c) return fail('descendSpot');
@@ -568,7 +595,8 @@ function buildRoomMap(spec, seed) {
   // 9) 적
   const pool = th.enemies.map((e) => [e, e === 'watcher' ? (d >= 2 ? 1.5 : 0) : e === 'flyer' || e === 'notif' ? 2 : 3]);
   if (spec.weekMod === 'notif') { const n = pool.find((q) => q[0] === 'notif'); if (n) n[1] = 6; else pool.push(['notif', 5]); }
-  const spawnMul = (spec.weekMod === 'quiet' ? 0.7 : 1) * (finalObj === 'patrol' ? 0.5 : 1);
+  const spawnMul = (spec.weekMod === 'quiet' ? 0.7 : 1) * (finalObj === 'patrol' ? 0.5 : finalObj === 'chase' ? 0.55 : finalObj === 'echo' ? 0.75 : 1);
+  if (finalObj === 'echo' && !pool.some((q) => q[0] === 'listener')) pool.push(['listener', 5]);
   const placeEnemy = (type, m, layer) => {
     const def = ENEMIES[type];
     const air = def.ai === 'float' || def.ai === 'swarm' || def.ai === 'turret';

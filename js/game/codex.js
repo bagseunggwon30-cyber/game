@@ -15,6 +15,7 @@ const CODEX_ENEMY = {
   tenant: ['철거가 끝나도 이사 가지 못한 사람. 보증금을 아직 돌려받지 못했다.', '벽을 통과해 떠돈다. 길목을 막고 있으면 돌아가는 편이 낫다.'],
   xmark: ['철거 예정 집에 칠해진 표시. 벽에서 떨어져 나와 다음 집을 찾는다.', '제자리에서 쏜다. 붉게 번쩍이면 발사 직전이다.'],
   smiler: ['근무 수칙에 적힌 그 손님. 아무것도 사지 않고, 계속 웃는다.', '해를 끼치지 않는다. 때리면 수칙 위반이고, 반드시 대가가 따른다.'],
+  listener: ['눈이 없다. 대신 귀가 너무 크다. 소리가 난 곳으로 곧장 달려온다.', '조용히 걸으면 지나간다. 박수·착지·공격 소리가 나면 그쪽으로 돌진한다.'],
   echo: ['표면에 남은 뒷면의 메아리. 누군가의 마지막 퇴근길을 되풀이한다.', '표면에서도 나타난다. 약하지만 닿으면 정신력이 깎인다.'],
 };
 const CODEX_BOSS = {
@@ -40,6 +41,8 @@ const CODEX_PLACE = {
   sauna: '24시간 찜질방. 수면실은 언제나 만석이다.',
   redev: '빨간 X가 칠해진 재개발 구역. 떠나지 못한 불빛이 아직 남아 있다.',
   hq: '청명관리 지점 사무동과 본사. 표면 어디에도 존재하지 않는다.',
+  office: '야근이 끝나지 않는 오피스 빌딩. 밤 11시면 17층의 불이 저절로 꺼진다.',
+  boiler: '빛이 닿지 않는 지하 기계실. 배관을 두드리면 누군가 답한다.',
 };
 // 보스를 쓰러뜨리면 풀리는 밈 (장소 테마에 묶이지 않는 것)
 const MEME_BY_BOSS = { flyer: 'mtteum', suit: 'mcheong' };
@@ -57,6 +60,7 @@ const CODEX_MILESTONES = [
   { need: 55, name: '뒷면 박물학자', reward: { items: { charm: 2, coffee: 2, gimbap: 2 } } },
   { need: 74, name: '도시 괴담 사전', reward: { sp: 3, money: 300000 } },
 ];
+CODEX_MILESTONES[CODEX_MILESTONES.length - 1].need = codexTotal();   // 마지막 칭호 = 전부
 
 function codexOf(s) {
   if (!s.codex) s.codex = { enemy: {}, boss: {}, art: {}, meme: {}, place: {} };

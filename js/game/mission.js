@@ -86,6 +86,9 @@ class MissionScene {
       const ex = this.interacts.find((o) => o.type === 'exit');
       if (ex) { ex.type = 'descend'; ex.layer = 'both'; }
     }
+    if (this.gen.objOverride) this.obj = this.gen.objOverride;
+    this.initSpecial();
+    if (this.side && this.side.childLines) this.childLines = this.side.childLines;
     this.snapCamera();
   }
 
@@ -108,8 +111,9 @@ class MissionScene {
   enter() {
     Sound.setAmbience(this.frontAmb());
     const storyIntro = this.story && !this.carry ? (this.s.cycle >= 2 && NG_INTRO[this.story.id] ? NG_INTRO[this.story.id].concat(this.story.intro) : this.story.intro) : null;
-    const intro = storyIntro || (this.side ? this.side.intro : null) ||
-      (this.job.ruleJob ? [['', RULE_SCENES[this.theme].intro]] : null);
+    const intro = storyIntro || (this.side ? this.side.intro.concat(SPECIAL_INTRO[this.obj] || []) : null) ||
+      (this.job.ruleJob ? [['', RULE_SCENES[this.theme].intro]] : null) ||
+      (SPECIAL_INTRO[this.obj] && !this.carry ? SPECIAL_INTRO[this.obj] : null);
     const next = () => {
       if (this.rule) Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), () => this.showStartBanner(), { paper: true }));
       else this.showStartBanner();
@@ -577,9 +581,14 @@ class MissionScene {
       return;
     }
     const o = this.nearInteract();
-    if (!o) return;
+    if (!o) { if (this.dark || this.obj === 'escort') this.clap(); return; }
     switch (o.type) {
+      case 'switch': this.flipSwitch(o); break;
+      case 'breaker': this.pressBreaker(o); break;
+      case 'child': this.takeChild(); o.done = true; break;
       case 'entry':
+        if (this.obj === 'escort' && this.childNear()) { Sound.play('door'); this.objState.complete = true; this.finish('success'); return; }
+        if (this.obj === 'escort' && this.child && this.child.following) { Sound.play('deny'); this.toast('아이가 아직 멀리 있다. 가까이 데려오자', '#ffb8c8'); return; }
         if (this.deep) {
           Game.push(new Menu({
             title: '탐사를 마칠까?', w: 250, desc: true,
@@ -735,6 +744,8 @@ class MissionScene {
 
   objText() {
     const o = this.objState;
+    const sp = this.objTextSpecial();
+    if (sp) return sp;
     if (this.obj === 'resolve') return o.clues < o.cluesTotal ? `단서 ${o.clues}/${o.cluesTotal}` : o.complete ? '해소 완료' : '원인 해소';
     if (this.obj === 'stabilize') return `앵커 ${o.anchors}/${o.anchorsTotal}`;
     if (this.obj === 'erase') return o.complete ? '말소 완료' : '핵 말소';
@@ -978,6 +989,7 @@ class MissionScene {
     if (!this.slowSkip) for (const e of this.enemies) if (!e.dead) e.update();
     this.enemies = this.enemies.filter((e) => !e.dead);
     if (this.boss && !this.slowSkip) this.boss.update();
+    this.updateSpecial();
     if (this.shockRing && --this.shockRing.t <= 0) this.shockRing = null;
     if (!this.slowSkip) this.updateBombs();
     // 저주 정예 근처에서는 공포가 차오른다
@@ -1321,6 +1333,7 @@ class MissionScene {
       else { ctx.globalAlpha = 0.3; this.boss.draw(ctx, cam); ctx.globalAlpha = 1; }
     }
     // 플레이어
+    this.drawSpecialWorld(ctx, cam, L);
     if (!p.dead) p.draw(ctx, cam);
     // 폭발 예고
     for (const b of this.bombs) {
@@ -1385,13 +1398,15 @@ class MissionScene {
     }
     ctx.globalAlpha = 1;
     // 뒷면 조명
-    if (L === 'back' || this.s.weekMod === 'blackout') this.drawDarkness(ctx, cam, L === 'front' ? 0.55 : null);
+    if (this.dark) this.drawSpecialDark(ctx, cam, L);
+    else if (L === 'back' || this.s.weekMod === 'blackout') this.drawDarkness(ctx, cam, L === 'front' ? 0.55 : null);
     // 플로팅 텍스트
     for (const f of this.floaters) Gfx.text(ctx, f.text, f.x - cam.x, f.y - cam.y, f.col, { small: true, align: 'center' });
     // 상호작용 안내 (키캡 + 이름)
     if (this.prompt && !this.locked) {
       const o = this.prompt;
-      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문', patrol: '순찰 확인', reddoor: '문 열기', rulenote: '메모 읽기', voice: '대답하기', shrine: '각인 고르기' }[o.type];
+      let label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문', patrol: '순찰 확인', reddoor: '문 열기', rulenote: '메모 읽기', voice: '대답하기', shrine: '각인 고르기', switch: '불 켜기', breaker: this.obj === 'lights' ? '분전반 (↑ 길게)' : '차단기 (↑ 길게)', child: '손 잡기' }[o.type];
+      if (o.type === 'entry' && this.obj === 'escort' && this.childNear()) label = '아이와 퇴근';
       const tx = Math.round(o.x + o.w / 2 - cam.x), ty = Math.round(o.y - 16 - cam.y + Math.sin(this.time * 0.15) * 1.5);
       const w = Gfx.measure(ctx, label, { small: true }) + 22;
       UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
@@ -1518,6 +1533,25 @@ class MissionScene {
         if (t % 90 < 6) { ctx.fillStyle = 'rgba(255,40,60,0.4)'; ctx.fillRect(x - 2, y - 2, o.w + 4, o.h + 2); }
         break;
       }
+      case 'switch': {
+        // 전등 스위치 (벽 패널)
+        G.px(ctx, x + 2, y + 4, 12, 16, '#0b0b10'); G.px(ctx, x + 3, y + 5, 10, 14, o.done ? '#f4f0e6' : '#9a9ca8');
+        G.px(ctx, x + 6, y + (o.done ? 7 : 12), 4, 5, o.done ? '#f2d040' : '#4a4c58');
+        if (!o.done && t % 50 < 25) { ctx.fillStyle = '#f2d040'; ctx.fillRect(x + 7, y + 1, 2, 2); }
+        break;
+      }
+      case 'breaker': {
+        // 차단기 / 분전반: 레버
+        G.px(ctx, x, y, o.w, o.h, '#0b0b10'); G.px(ctx, x + 1, y + 1, o.w - 2, o.h - 2, o.done ? '#5a6a5a' : '#6a6a70');
+        G.px(ctx, x + 3, y + 3, o.w - 6, 8, '#2a2a30');
+        for (let i = 0; i < 4; i++) G.px(ctx, x + 4 + i * 4, y + 5, 2, 4, o.done ? '#6fd08c' : i * 45 < (o.prog || 0) ? '#f2d040' : '#4a4a50');
+        const k = o.done ? 1 : Math.min(1, (o.prog || 0) / (BREAKER_NEED[this.obj] || 160));
+        G.px(ctx, x + o.w / 2 - 2, y + 26 - Math.round(k * 12), 4, 6, '#d8281e');
+        G.px(ctx, x + o.w / 2 - 1, y + 14, 2, 14, '#2a2a30');
+        if (!o.done && t % 40 < 20) { ctx.fillStyle = '#f2d040'; ctx.fillRect(x + o.w - 5, y + 3, 2, 2); }
+        break;
+      }
+      case 'child': break;
       case 'shrine': {
         // 뒷면 자판기: 표면에선 고장 난 자판기, 뒷면에선 붉게 빛난다
         const back = L === 'back';
@@ -1830,7 +1864,8 @@ class MissionScene {
       Gfx.text(ctx, t, VW - 11, 35, COL.pink, { small: true, align: 'right' });
     }
     // 미니맵 (휴대폰 앱 — 교란되면 깨진다)
-    if (this.gen.map) this.drawMinimap(ctx, jv && !truth ? jv : 0);
+    if (this.gen.map && this.dark !== 'echo') this.drawMinimap(ctx, jv && !truth ? jv : 0);
+    this.drawSpecialHud(ctx);
     // 신호 상태 표시 (이것만큼은 정직하다)
     if (jv || J.immune > 0) {
       const y = 47;

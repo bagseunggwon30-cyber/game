@@ -167,6 +167,10 @@ const DECOR_DRAW = {
   vending(c, G) { G.px(c, 0, 0, 24, 40, '#c83a3a'); G.px(c, 3, 3, 18, 22, '#e8f0f8'); for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) G.px(c, 4 + i * 4, 5 + j * 7, 3, 5, ['#3ad0a0', '#f2c230', '#5a7dff', '#f4f0e6'][(i + j) % 4]); G.px(c, 6, 30, 12, 4, '#2a2a30'); },
   cubicle(c, G) { G.px(c, 0, 8, 44, 26, '#8a8e9a'); G.px(c, 0, 8, 44, 2, '#5a5e6a'); G.px(c, 14, 0, 16, 10, '#1a1a24'); G.px(c, 16, 2, 12, 6, '#62a0d8'); },
   cooler(c, G) { G.px(c, 2, 0, 12, 12, '#a8d8f8'); G.px(c, 0, 12, 16, 24, '#e8e8ec'); G.px(c, 4, 18, 3, 2, '#5a7dff'); G.px(c, 9, 18, 3, 2, '#e5383b'); },
+  copier(c, G) { G.px(c, 0, 6, 30, 20, '#d8dce4'); G.px(c, 2, 2, 26, 5, '#b8bcc8'); G.px(c, 4, 10, 22, 2, '#3a3e4a'); G.px(c, 20, 14, 6, 4, '#5a8aff'); G.px(c, 4, 18, 14, 2, '#f4f8ff'); G.px(c, 0, 24, 30, 2, '#8a8e9a'); },
+  pipes(c, G) { for (const y of [4, 14]) { G.px(c, 0, y, 48, 6, '#6a6a60'); G.px(c, 0, y, 48, 1, '#9a9a8a'); } G.px(c, 10, 4, 6, 36, '#5a5a50'); G.px(c, 10, 4, 1, 36, '#8a8a7a'); G.px(c, 34, 14, 6, 26, '#5a5a50'); G.circle(c, 13, 26, 4, '#d8281e'); G.px(c, 12, 25, 3, 3, '#ff6a5a'); },
+  boiler(c, G) { G.px(c, 2, 6, 32, 34, '#5a5a52'); G.px(c, 2, 6, 32, 2, '#8a8a7a'); G.circle(c, 18, 4, 4, '#4a4a44'); G.px(c, 8, 16, 20, 10, '#2a2a26'); G.px(c, 10, 20, 16, 4, '#ff7a2a'); G.circle(c, 26, 32, 3, '#c8c8b8'); G.px(c, 25, 29, 2, 3, '#d8281e'); },
+  fusebox(c, G) { G.px(c, 0, 0, 22, 30, '#7a7a70'); G.px(c, 2, 2, 18, 26, '#4a4a44'); for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) G.px(c, 4 + j * 8, 4 + i * 8, 5, 5, (i + j) % 2 ? '#2a2a26' : '#c8c8b8'); G.px(c, 7, 26, 8, 2, '#f2c230'); },
   bed(c, G) { G.px(c, 0, 10, 40, 6, '#c8d0d0'); G.px(c, 0, 6, 12, 5, '#f4f8f4'); G.px(c, 10, 8, 28, 3, '#9ab8c8'); G.px(c, 2, 16, 2, 6, '#7a8a88'); G.px(c, 36, 16, 2, 6, '#7a8a88'); G.px(c, 0, 2, 3, 14, '#a8b4b4'); },
   ivstand(c, G) { G.px(c, 7, 2, 2, 36, '#8a8a9a'); G.px(c, 3, 2, 10, 2, '#8a8a9a'); G.px(c, 3, 5, 6, 8, '#d8f0e8'); G.px(c, 4, 9, 4, 4, '#c8ff6a'); G.px(c, 2, 37, 12, 2, '#5a5a6a'); },
   wheelchair(c, G) { G.circle(c, 9, 16, 7, '#3a3a48'); G.circle(c, 9, 16, 5, '#c8ccd8'); G.circle(c, 9, 16, 1, '#3a3a48'); G.px(c, 4, 6, 14, 3, '#3a6a8a'); G.px(c, 16, 0, 3, 10, '#5a5a6a'); G.px(c, 20, 18, 3, 3, '#3a3a48'); },
@@ -181,7 +185,7 @@ const DECOR_DRAW = {
   fence(c, G) { G.px(c, 0, 4, 40, 2, '#c8a040'); G.px(c, 0, 12, 40, 2, '#c8a040'); for (let i = 0; i < 5; i++) G.px(c, i * 9 + 2, 0, 3, 22, '#e8c040'); for (let i = 0; i < 4; i++) G.line(c, i * 9 + 4, 4, i * 9 + 11, 12, '#1a1a20'); },
   cctv(c, G) { G.px(c, 0, 0, 4, 4, '#5a5a6a'); G.px(c, 2, 3, 14, 7, '#c8ccd8'); G.px(c, 14, 5, 3, 3, '#e5383b'); },
 };
-const DECOR_SIZES_EXTRA = { bed: [40, 22], ivstand: [14, 39], wheelchair: [24, 24], curtain: [30, 36], kiln: [36, 36], mats: [44, 8], tv: [34, 23], eggbasket: [26, 16], xwall: [36, 30], rubble: [34, 16], banner: [48, 14], fence: [40, 22] };
+const DECOR_SIZES_EXTRA = { copier: [30, 26], pipes: [48, 40], boiler: [36, 40], fusebox: [22, 30], bed: [40, 22], ivstand: [14, 39], wheelchair: [24, 24], curtain: [30, 36], kiln: [36, 36], mats: [44, 8], tv: [34, 23], eggbasket: [26, 16], xwall: [36, 30], rubble: [34, 16], banner: [48, 14], fence: [40, 22] };
 const DecorCache = {};
 function decorSprite(type, layer) {
   const k = type + ':' + layer;
@@ -203,7 +207,7 @@ function decorSprite(type, layer) {
   return cv;
 }
 // 소품을 걸어 둘 높이 (바닥 기준 위로)
-const DECOR_Y = { sign: 52, window: 50, poster: 40, map: 46, screen: 60, board: 48, clock: 58, cctv: 70, extinguisher: 22, mailbox: 30, tv: 56, banner: 58, xwall: 44 };
+const DECOR_Y = { fusebox: 44, pipes: 64, sign: 52, window: 50, poster: 40, map: 46, screen: 60, board: 48, clock: 58, cctv: 70, extinguisher: 22, mailbox: 30, tv: 56, banner: 58, xwall: 44 };
 
 // ───────────── 절차 생성 ─────────────
 function generateMission(spec) {
@@ -211,12 +215,14 @@ function generateMission(spec) {
     const r = generateRoomMission(spec);
     if (r) return r;
   }
+  let objOverride = null;
   if (spec.obj === 'descend') spec = Object.assign({}, spec, { obj: 'stabilize' });
+  if (['lights', 'echo', 'escort', 'chase'].includes(spec.obj)) { objOverride = 'resolve'; spec = Object.assign({}, spec, { obj: 'resolve' }); }
   const rng = new RNG(spec.seed || 1);
   const th = THEMES[spec.theme];
   const d = spec.diff;
   const lvl = new Level(900, LH);
-  const out = { lvl, enemies: [], pickups: [], interacts: [], decor: [], hints: [], ambush: [], start: null, arena: null, theme: spec.theme };
+  const out = { lvl, enemies: [], pickups: [], interacts: [], decor: [], hints: [], ambush: [], start: null, arena: null, theme: spec.theme, objOverride };
   const B = { x: 0, gy: 14, ground: [], secret: [], segs: [] };
 
   const floor = (x0, x1, gy, layer = 'both') => {

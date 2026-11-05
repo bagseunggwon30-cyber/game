@@ -104,7 +104,7 @@ class TitleScene {
     // 플레이어 실루엣
     const f = SPR.player.R[2 + Math.floor(this.t / 7) % 4];
     ctx.drawImage(back ? SPR.follower.R[2 + Math.floor(this.t / 7) % 4] : f, 40, 166);
-    Gfx.text(ctx, 'v1.3', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+    Gfx.text(ctx, 'v1.4', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
     const seenN = endingsSeen().length;
     if (seenN) Gfx.text(ctx, `결말 ${ENDING_ORDER.filter((k) => endingsSeen().includes(k)).length}/${ENDING_ORDER.length}`, 6, 4, COL.dim, { small: true });
   }
@@ -236,6 +236,10 @@ class ResultScene {
       if (noDmg && full) Achieve.unlock('noDamage');
       if (perfect) Achieve.unlock('perfectRule');
       if (deep && full) Achieve.unlock('deepFull');
+      if (full && job.obj === 'lights') Achieve.unlock('lightsOn');
+      if (full && job.obj === 'echo') { Achieve.unlock('darkWalk'); if (!run.claps) Achieve.unlock('noClap'); }
+      if (full && job.obj === 'escort') Achieve.unlock('escortDone');
+      if (full && job.obj === 'chase' && !run.caught) Achieve.unlock('chaseDone');
       pay = Math.round(pay / 1000) * 1000;
       const r = addMoney(s, pay + run.cash);
       if (deep) this.log.push(['탐사 깊이', `${deep.cleared}/${deep.stages}층${full ? ' · 완주' : ''}`, '#b86cff']);

@@ -10,6 +10,8 @@ const SPEAKERS = {
   phone: { name: '틈새 알림', face: null, col: '#62d6e8' },
   ryu: { name: '감사팀 류 과장', face: 'ryu', col: '#9aa8c8' },
   k: { name: '도시탐정 K', face: 'k', col: '#ff8a7a' },
+  guard: { name: '경비 반장 최씨', face: 'guard', col: '#a8c8a0' },
+  child: { name: '아이', face: null, col: '#ffb8c8' },
   '': { name: '', face: null, col: '#f4f0e6' },
   fakeSeo: { name: '서경 팀장', face: 'seo', col: '#c8d0e0' },
 };
@@ -55,13 +57,13 @@ const TUTORIAL_HINTS = {
 // ───── 챕터 ─────
 const CHAPTERS = [
   { n: 1, title: '수습 기간', sub: '이상한 알바를 시작했다', rent: 200000, themes: ['apartment', 'store', 'subway'], diff: [1, 2], intro: [] },
-  { n: 2, title: '신호 불량', sub: '화면이 거짓말을 하기 시작했다', rent: 260000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang'], diff: [2, 3],
+  { n: 2, title: '신호 불량', sub: '화면이 거짓말을 하기 시작했다', rent: 260000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'office'], diff: [2, 3],
     intro: [['seo', '하람 씨, 수습 기간 끝났어요. 이제 정식 알바예요.'], ['seo', '요즘 현장에서 휴대폰이 이상해진다는 보고가 늘었어요. 화면만 믿지 마세요.']] },
-  { n: 3, title: '틈새', sub: '사라진 사람이 공고가 되었다', rent: 330000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna'], diff: [3, 4],
+  { n: 3, title: '틈새', sub: '사라진 사람이 공고가 되었다', rent: 330000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'office', 'boiler'], diff: [3, 4],
     intro: [['', '민재의 번호는 아직 연락처에 남아 있다. 메시지 옆의 "1"은 사라지지 않는다.'], ['noeul', '...틈새 앱, 요즘 공고가 이상하게 많지 않아요?']] },
-  { n: 4, title: '배양실', sub: '치우는 곳이 아니라, 키우는 곳', rent: 400000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'hq'], diff: [4, 5],
+  { n: 4, title: '배양실', sub: '치우는 곳이 아니라, 키우는 곳', rent: 400000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'office', 'boiler', 'hq'], diff: [4, 5],
     intro: [['seo', '현장 조장 승진 축하해요. 이제부터는... 보이는 게 많아질 거예요.'], ['seo', '보인다고 다 말할 필요는 없어요.']] },
-  { n: 5, title: '청명', sub: '모두가 믿는 이야기', rent: 480000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'hq'], diff: [5, 5],
+  { n: 5, title: '청명', sub: '모두가 믿는 이야기', rent: 480000, themes: ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'office', 'boiler', 'hq'], diff: [5, 5],
     intro: [['', '틈새 앱에 알림이 하나 떴다. 발신: 청명관리 본사.'], ['phone', '【청명관리(주)】 정규직 전환 면접 안내 — 장소: 본사 (뒷면)']] },
 ];
 
@@ -333,6 +335,42 @@ const SIDE_QUESTS = [
     reward: { sp: 2, money: 150000, artifact: 'silentrec' },
   },
 ];
+// ── 경비 반장 최씨: 한빛타워 야간 경비 (특수 의뢰 연작) ──
+SIDE_QUESTS.push(
+  {
+    id: 'D1', chain: 'D', giver: 'guard', chapter: 2, obj: 'lights', after: (s) => storyDone(s, 'c2s'),
+    theme: 'office', diff: 2, title: '[경비 반장 부탁] 17층 소등 점검', pay: 160000,
+    notify: '한빛타워 경비 반장 최입니다. 17층 불이 밤마다 저절로 꺼져요. 다시 켜 주실 분을 찾습니다. 수고비 드려요.',
+    intro: [['guard', '30년째 이 빌딩 야간 경비요. 밤 11시만 되면 17층이 통째로 꺼져.'], ['guard', '분전반은 복도 끝에 있소. 근데 방마다 스위치를 먼저 다 켜야 올라가. 옛날 건물이라.'], ['guard', '...불 꺼진 방에서 타자 소리가 나도, 대답하지 마시오.']],
+    outro: [['guard', '불 들어왔네. 3년 만이오, 17층이 아침까지 밝은 거.'], ['guard', '그 층에서 야근하던 친구가 하나 있었소. 퇴근 기록이 없어. 아직도.']],
+    reward: { sp: 1, money: 50000 },
+  },
+  {
+    id: 'D2', chain: 'D', giver: 'guard', chapter: 3, obj: 'echo', after: (s) => s.sideDone.includes('D1'),
+    theme: 'boiler', diff: 3, title: '[경비 반장 부탁] 지하 3층 차단기', pay: 210000,
+    notify: '지하 3층 기계실 차단기가 내려갔소. 불이 하나도 안 들어와. 내가 가면 되는데… 나는 거기 못 내려가오.',
+    intro: [['guard', '거기는 빛이 하나도 없소. 손전등도 안 먹혀.'], ['guard', '벽을 더듬고, 귀로 가시오. 배관을 두드리는 소리가 나면… 두드리지 말고 그냥 지나가시오.'], ['me', '반장님은 왜 못 내려가세요?'], ['guard', '두 번 두드렸더니 두 번 대답하더군. 세 번째는… 기억이 안 나.']],
+    outro: [['', '차단기가 올라가자 기계실 전체가 웅웅 울렸다. 배관 어딘가에서 마지막 노크 소리가 멀어졌다.'], ['guard', '고맙소. 이거 가져가요. 거기서 주운 거요. 나한텐 이제 필요 없겠지.']],
+    reward: { sp: 1, artifact: 'earplug' },
+  },
+  {
+    id: 'D3', chain: 'D', giver: 'guard', chapter: 3, obj: 'escort', after: (s) => s.sideDone.includes('D2'),
+    theme: 'school', diff: 3, title: '[경비 반장 부탁] 경비실에 온 아이', pay: 200000,
+    notify: '밤에 경비실로 아이가 하나 찾아왔소. 엄마를 찾는다는데… 그 아이, 거울에 안 비쳐. 집까지 좀 데려다주시오.',
+    intro: [['guard', '아이가 구 한별고 쪽에서 왔다는군. 거기 뒷면 어딘가에서 엄마를 기다렸대.'], ['guard', '손을 놓치지 마시오. 무서우면 도로 숨어 버리니까.']],
+    childLines: [['child', '...아저씨가 데리러 온 거예요? 엄마가 여기서 기다리랬는데.'], ['me', '엄마한테 같이 가자. 손 꼭 잡아.'], ['child', '...네. 근데 뒤에서 누가 자꾸 불러요.']],
+    outro: [['', '입구에 닿자 아이의 손이 가벼워졌다. 돌아보니 아무도 없었다.'], ['', '대신 입구 계단에, 오래된 출석부 한 장이 놓여 있었다. 지워진 이름 위로 연필로 쓴 글씨: "집에 갔어요."'], ['guard', '...그랬구먼. 다행이오.']],
+    reward: { sp: 1, money: 80000, truth: true },
+  },
+  {
+    id: 'D4', chain: 'D', giver: 'guard', chapter: 4, obj: 'chase', after: (s) => s.sideDone.includes('D3'),
+    theme: 'office', diff: 4, title: '[경비 반장 부탁] 새벽 4시의 청소부', pay: 280000,
+    notify: '마지막 부탁이오. 새벽 4시에 17층을 청소하는 게 있소. 그게 지나간 자리는 사람이고 뭐고 다 지워져. 이번엔 내가 봤소.',
+    intro: [['guard', '그게 청명 청소부요. 이상한 거 치우고, 치운 자리에 아무것도 안 남기는.'], ['guard', '30년 전에 나도 청명 알바였소. 그날 나는 도망쳤고, 동료는 못 도망쳤지.'], ['guard', '뛰시오. 뒤돌아보지 말고. 이번엔 꼭 퇴근해요.']],
+    outro: [['', '출구 문을 닫자, 문 너머에서 걸레질 소리가 멈췄다.'], ['guard', '...해냈구먼. 30년 동안 나는 그 문을 못 닫았소.'], ['guard', '이거 받으시오. 경비 일 그만두려고. 이제 밤에 잠 좀 자야지.']],
+    reward: { sp: 2, money: 120000, artifact: 'whistle', flag: 'guardFree' },
+  },
+);
 const SIDE_BY_ID = Object.fromEntries(SIDE_QUESTS.map((q) => [q.id, q]));
 
 // NPC 잡담

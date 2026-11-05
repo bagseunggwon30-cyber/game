@@ -281,6 +281,18 @@ function genJobs(s) {
     j.pay = Math.round(BASE_PAY[d] * 1.25 * (1 + 0.03 * s.stats.luk) / 1000) * 1000;
     jobs.push(j);
   }
+  // 특수 의뢰: 정전 복구 / 암흑 작업 / 배웅 / 추격
+  if (chapterOf(s) >= 2 && rng.chance(0.55)) {
+    const obj = rng.pick(SPECIAL_OBJS);
+    const pool = ch.themes.filter((t) => t !== 'hq');
+    const theme = obj === 'lights' ? 'office' : obj === 'echo' ? (ch.themes.includes('boiler') ? 'boiler' : 'office') : rng.pick(pool);
+    const d = rng.int(lo, hi);
+    const j = makeJob(s, rng, theme, 'resolve', d);
+    j.obj = obj;
+    j.title = rng.pick(SPECIAL_TITLES[obj]);
+    j.pay = Math.round(BASE_PAY[d] * 1.35 * (1 + 0.03 * s.stats.luk) / 1000) * 1000;
+    jobs.push(j);
+  }
   // 교란을 겪은 뒤에는 출처 불명 공고가 끼어든다
   if ((s.flags.jamSeen || s.contamination >= 35) && rng.chance(0.4)) {
     const j = makeJob(s, rng, rng.pick(ch.themes), rng.pick(objs), clamp(hi + 1, 2, 5));
@@ -298,11 +310,11 @@ function sideAvailable(s, q) {
 }
 function sideJobs(s) {
   const out = [];
-  for (const chain of ['A', 'B', 'C']) {
+  for (const chain of ['A', 'B', 'C', 'D']) {
     const q = SIDE_QUESTS.find((x) => x.chain === chain && !s.sideDone.includes(x.id));
     if (!q || !sideAvailable(s, q)) continue;
-    out.push({ id: q.id, side: q.id, theme: q.theme, obj: 'patrol', diff: q.diff, pay: q.pay, title: q.title, seed: 3000 + q.id.charCodeAt(0) * 31 + Number(q.id[1]) * 7,
-      rules: q.rules.map(([id, fake]) => ({ id, fake: !!fake })), patrol: q.patrol });
+    out.push({ id: q.id, side: q.id, theme: q.theme, obj: q.obj || 'patrol', diff: q.diff, pay: q.pay, title: q.title, seed: 3000 + q.id.charCodeAt(0) * 31 + Number(q.id[1]) * 7,
+      rules: q.rules ? q.rules.map(([id, fake]) => ({ id, fake: !!fake })) : undefined, patrol: q.patrol });
   }
   return out;
 }

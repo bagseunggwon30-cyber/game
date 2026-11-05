@@ -342,7 +342,8 @@ class HubScene {
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
-            j.side ? `${SPEAKERS[SIDE_BY_ID[j.side].giver].name}의 부탁. 근무 수칙 ${j.rules.length}개를 지키며 순찰 ${j.patrol}곳을 돌고 06:00까지 버틴다.` :
+            j.side ? (j.rules ? `${SPEAKERS[SIDE_BY_ID[j.side].giver].name}의 부탁. 근무 수칙 ${j.rules.length}개를 지키며 순찰 ${j.patrol}곳을 돌고 06:00까지 버틴다.` : `${SPEAKERS[SIDE_BY_ID[j.side].giver].name}의 부탁. ${OBJECTIVES[j.obj].name} — ${OBJECTIVES[j.obj].desc}`) :
+            SPECIAL_OBJS.includes(j.obj) ? `${OBJECTIVES[j.obj].name} · ${THEMES[j.theme].name} — ${OBJECTIVES[j.obj].desc} 보수 1.35배.` :
             j.ruleJob ? `${RULE_SCENES[j.theme].intro} 수칙 ${j.rules.length}개 — 거짓 수칙이 섞여 있을 수 있다. 무위반이면 보수 +30%.` :
             j.obj === 'deep' ? `${THEMES[j.theme].name}의 뒷면을 ${j.stages}층까지 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다. 마지막 층: ${OBJECTIVES[j.finalObj].name}. 쓰러지면 모두 잃는다.` :
             j.jammed ? `출처를 알 수 없는 공고. 보수는 1.6배지만 현장 전체에 통신 교란이 깔려 있다. (${(OBJECTIVES[j.obj] || { name: '최종' }).name})` : `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,

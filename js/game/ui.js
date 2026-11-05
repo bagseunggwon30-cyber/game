@@ -487,6 +487,7 @@ class SettingsView {
       num('sfx', '효과음', '공격, 발소리, 알림 같은 효과음.'),
       { label: '화면 흔들림', desc: '피격·폭발·보스 등장 때 화면이 흔들리는 정도.', text: () => SHAKE_NAMES[v.shake], adj: (d, wrap) => { v.shake = wrap ? (v.shake + 1) % 3 : clamp(v.shake + d, 0, 2); } },
       { label: '깜빡임·글리치 줄이기', desc: '광과민성 배려: 화면 반전 섬광, 점멸, 화면 찢김, 노이즈 흔들림을 줄인다.', text: () => (v.calm ? '켬' : '끔'), adj: () => { v.calm = !v.calm; }, col: () => (v.calm ? COL.green : null) },
+      { label: '진동', desc: '게임패드(또는 휴대폰) 진동. 암흑 작업에서 벽과 존재를 느끼게 해 준다.', text: () => (v.rumble !== false ? '켬' : '끔'), adj: () => { v.rumble = v.rumble === false; } },
       { label: '글자 속도', desc: '대화가 나타나는 속도.', text: () => TEXT_SPEED_NAMES[v.textSpeed], adj: (d, wrap) => { v.textSpeed = wrap ? (v.textSpeed + 1) % 4 : clamp(v.textSpeed + d, 0, 3); } },
       { label: '조작법 · 키보드', desc: '키보드 조작 안내.', action: () => Game.push(new TextView('조작법 · 키보드', CONTROLS_TEXT)) },
       { label: '조작법 · 게임패드', desc: pad ? '연결됨: ' + pad : '게임패드가 연결되어 있지 않다. 연결 후 아무 버튼이나 누르면 인식된다.', action: () => Game.push(new TextView('조작법 · 게임패드', PAD_CONTROLS_TEXT)) },

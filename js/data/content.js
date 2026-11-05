@@ -75,8 +75,24 @@ const THEMES = {
     enemies: ['watcher', 'follower', 'flyer', 'notif', 'noise'],
     artifacts: ['frame', 'erased', 'mirror', 'key'],
   },
+  office: {
+    name: '한빛타워 17층', short: '야근 빌딩', meme: 'm17', boss: 'monitor',
+    front: { wall: '#7a8496', wall2: '#6a7486', trim: '#3a4a6a', floor: '#8a8e98', floor2: '#6e727c', solid: '#4a5060', solid2: '#3e4452', plat: '#9aa0ac', barrier: '#62d6e8', sky: '#0c1220' },
+    back: { wall: '#0e2a2a', wall2: '#0a2020', trim: '#1a5a50', floor: '#163a36', floor2: '#102c28', solid: '#061210', solid2: '#040c0a', plat: '#24584e', barrier: '#5aff9a', sky: '#020606' },
+    decor: ['cubicle', 'pc', 'copier', 'plant', 'board', 'clock', 'window'],
+    enemies: ['echo', 'notif', 'watcher', 'follower'],
+    artifacts: ['keycard', 'stapler', 'mug'],
+  },
+  boiler: {
+    name: '지하 3층 기계실', short: '기계실', meme: 'mboiler', boss: 'speaker',
+    front: { wall: '#4a4c48', wall2: '#3e403c', trim: '#8a6a2a', floor: '#5a5a54', floor2: '#484842', solid: '#2e302c', solid2: '#262824', plat: '#6a6a60', barrier: '#f2c230', sky: '#0a0a08' },
+    back: { wall: '#2a140a', wall2: '#221008', trim: '#6a2a0a', floor: '#3a1e10', floor2: '#2c160a', solid: '#120804', solid2: '#0c0502', plat: '#5a2e14', barrier: '#ff7a2a', sky: '#040201' },
+    decor: ['pipes', 'boiler', 'fusebox', 'pipes', 'sign', 'extinguisher'],
+    enemies: ['listener', 'crawler', 'noise', 'steam'],
+    artifacts: ['valve', 'fuse', 'earplug'],
+  },
 };
-const REGULAR_THEMES = ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev'];
+const REGULAR_THEMES = ['apartment', 'store', 'subway', 'school', 'pcbang', 'hospital', 'sauna', 'redev', 'office', 'boiler'];
 
 // 밈적 존재 (괴담)
 const MEMES = {
@@ -89,6 +105,8 @@ const MEMES = {
   m13: { name: '13번째 계단', desc: '야자 시간에 본관 계단을 세면 12개가 아니라 13개다. 13번째 계단을 밟은 학생은 출석부에서 지워진다.' },
   msmile: { name: '웃는 썸네일', desc: '끝까지 보면 안 되는 영상. 썸네일 속 얼굴은 볼 때마다 조금씩 더 웃고 있다.' },
   mtteum: { name: '틈새 공고', desc: '정말 급한 사람에게만 보이는 구인 공고. 지원 버튼은 누를 수 있지만, 취소 버튼은 없다.' },
+  m17: { name: '꺼지지 않는 17층', desc: '밤 11시가 넘으면 17층 불이 모두 꺼지는데, 누군가 아직 키보드를 친다. 그 사람은 출입 기록에도 퇴근 기록에도 없다.' },
+  mboiler: { name: '배관의 노크', desc: '기계실 배관을 두 번 두드리면 누군가 똑같이 두 번 두드려 답한다. 세 번째는 바로 등 뒤에서 들린다.' },
   mcheong: { name: '청명(淸明)', desc: '"누군가 이상한 것들을 치우고 있으니 괜찮다." 모두가 그렇게 믿는다.' },
 };
 
@@ -108,6 +126,7 @@ const ENEMIES = {
   xmark: { name: '빨간 X', hp: 18, dmg: 9, san: 3, spd: 0, ai: 'turret', w: 12, h: 12, layer: 'back', sprite: 'xmark', score: 1 },
   smiler: { name: '웃는 손님', hp: 20, dmg: 0, san: 0, spd: 0.35, ai: 'wander', w: 10, h: 22, layer: 'front', sprite: 'smiler', score: 0 },
   echo: { name: '잔향', hp: 12, dmg: 6, san: 4, spd: 0.5, ai: 'drift', w: 10, h: 22, layer: 'front', sprite: 'echo', score: 1 },
+  listener: { name: '귀 기울이는 것', hp: 30, dmg: 14, san: 6, spd: 0.5, ai: 'listener', w: 10, h: 26, layer: 'back', sprite: 'listener', score: 2 },
 };
 
 // 보스 정의 (메인 패턴, 소환물)
@@ -156,6 +175,13 @@ const ARTIFACTS = {
   rulebook: { name: '근무 수칙서 원본', icon: 'rulebook', rarity: 1, from: 'm3am', eff: { per: 1 }, ability: 'ruleSense', story: true, desc: '여섯 번째 줄이 손톱으로 긁혀 있다. 들고 있으면 거짓 수칙이 붉게 번져 보인다.' },
   redknob: { name: '빨간 문고리', icon: 'redknob', rarity: 1, from: 'm45', eff: { luk: 2 }, story: true, desc: '존재하지 않는 101호의 문고리. 쥐고 있으면 "열지 말아야 할 문"이 먼저 보인다.' },
   silentrec: { name: '대답하지 않은 녹음기', icon: 'silentrec', rarity: 2, from: 'msmile', eff: { mnd: 2, per: 1 }, story: true, desc: '마지막 방송의 녹음본. 재생하면 누군가 이름을 부르고, 아무도 대답하지 않는다.' },
+  keycard: { name: '17층 출입카드', icon: 'keycard', rarity: 0, from: 'm17', eff: { agi: 1 }, desc: '찍을 때마다 "퇴근 처리되지 않았습니다"라고 뜬다.' },
+  stapler: { name: '피 묻은 스테이플러', icon: 'stapler', rarity: 1, from: 'm17', eff: { str: 1, per: 1 }, desc: '서류를 묶는 소리가 꼭 무언가를 박아 넣는 소리 같다.' },
+  mug: { name: '식지 않는 머그컵', icon: 'mug', rarity: 1, from: 'm17', eff: { mnd: 1, vit: 1 }, desc: '"세계 최고의 팀장" 문구. 커피는 몇 년째 따뜻하다.' },
+  valve: { name: '녹슨 밸브 손잡이', icon: 'valve', rarity: 0, from: 'mboiler', eff: { vit: 1 }, desc: '돌리면 어디선가 물 대신 숨소리가 흘러나온다.' },
+  fuse: { name: '타 버린 퓨즈', icon: 'fuse', rarity: 1, from: 'mboiler', eff: { per: 1, agi: 1 }, desc: '끊어졌는데도 쥐고 있으면 손끝이 찌릿하다.' },
+  earplug: { name: '귀마개 한 짝', icon: 'earplug', rarity: 2, from: 'mboiler', eff: { mnd: 2 }, light: 10, desc: '끼면 세상이 조용해진다. 대신 무언가 귓가에서 숨 쉬는 소리가 또렷해진다.' },
+  whistle: { name: '경비 호루라기', icon: 'whistle', rarity: 2, from: 'm17', eff: { mnd: 1, agi: 1, per: 1 }, story: true, desc: '최 반장이 30년 동안 목에 걸고 다닌 호루라기. 불면 어둠 속 벽이 한 번 울린다.' },
   idcard: { name: '청명 사원증', icon: 'idcard', rarity: 2, from: 'mcheong', eff: {}, story: true, desc: '사진 칸에 아무 얼굴도 없다. 누구든 될 수 있다.' },
 };
 const RARITY = [
@@ -256,6 +282,10 @@ const OBJECTIVES = {
   patrol: { name: '야간 근무', desc: '근무 수칙을 지키며 순찰 지점을 확인하고 06:00까지 버틴다.', col: '#f2c230' },
   deep: { name: '심층 탐사', desc: '뒷면 깊이 내려간다. 균열마다 계속할지 챙겨서 철수할지 고른다.', col: '#b86cff' },
   descend: { name: '하강', desc: '더 깊은 균열을 찾아 내려간다.', col: '#b86cff' },
+  lights: { name: '정전 복구', desc: '불 꺼진 층의 스위치를 하나씩 켜고, 분전반을 올려야 퇴근할 수 있다.', col: '#f2d040' },
+  echo: { name: '암흑 작업', desc: '빛이 하나도 없다. 소리와 진동으로 길을 찾아 차단기를 올리고 퇴근한다. 박수(↑)는 멀리 보이게 하지만 소리를 쫓는 것을 부른다.', col: '#9ae8ff' },
+  escort: { name: '배웅', desc: '뒷면에서 길 잃은 아이를 찾아 손을 잡고, 입구까지 데려간다.', col: '#ffb8c8' },
+  chase: { name: '추격', desc: '무언가가 발자취를 따라온다. 붙잡히기 전에 출구까지 달린다.', col: '#ff6a4a' },
 };
 
 const STAT_INFO = {
@@ -269,6 +299,21 @@ const STAT_INFO = {
 const STAT_KEYS = ['vit', 'mnd', 'str', 'agi', 'per', 'luk'];
 
 // 테마별 민원 문구 (알바 공고 제목)
+// 특수 의뢰 (2장부터 공고에 섞인다)
+const SPECIAL_OBJS = ['lights', 'echo', 'escort', 'chase'];
+const SPECIAL_TITLES = {
+  lights: ['[정전 복구] 17층 불 켜고 오기', '[정전 복구] 야근 층 소등 점검', '[정전 복구] 꺼진 사무실 전원 복구'],
+  echo: ['[암흑 작업] 지하 3층 차단기 올리기', '[암흑 작업] 빛이 없는 기계실 점검', '[암흑 작업] 소리만 남은 층'],
+  escort: ['[배웅] 길 잃은 아이를 입구까지', '[배웅] 뒷면 미아 인계', '[배웅] 막차 놓친 아이 데려다주기'],
+  chase: ['[추격] 새벽 4시의 청소부를 피해 퇴근', '[추격] 뒤돌아보지 말고 출구까지', '[추격] 발자취를 지우는 것'],
+};
+// 특수 의뢰를 처음 받을 때 나오는 안내
+const SPECIAL_INTRO = {
+  lights: [['phone', '【틈새】 정전 복구 — 층 전체 소등. 방마다 스위치를 켜고(↑), 마지막에 분전반을 올려야(↑ 길게) 퇴근 처리됩니다.'], ['', '불 꺼진 방에서는 공포가 조금씩 차오른다. 스위치를 켤 때마다, 꺼진 방의 무언가가 깨어난다.']],
+  echo: [['phone', '【틈새】 암흑 작업 — 조명 없음. 발소리와 진동으로 길을 찾으세요. 차단기를 올려야 출구가 열립니다.'], ['', '걸으면 발소리가 벽을 비춘다. ↑로 손뼉을 치면 멀리까지 보이지만… 소리를 쫓는 것이 온다. ↓를 누른 채 걸으면 조용하다.']],
+  escort: [['phone', '【틈새】 배웅 — 뒷면에서 길 잃은 아이를 찾아 손을 잡고(↑) 입구까지 데려가세요.'], ['', '아이는 내 발자취를 그대로 따라온다. 존재에게 닿으면 겁에 질려 멈추고, 너무 무서우면 처음 자리로 도망친다.']],
+  chase: [['phone', '【틈새】 추격 — 현장에 들어서면 "청소부"가 깨어납니다. 붙잡히지 말고 출구까지.'], ['', '그것은 내 발자취를 그대로 따라온다. 뒤집어도 소용없다. 질주하고, 구르고, 멈추지 말 것.']],
+};
 const DEEP_TITLES = ['[심층 탐사] 뒷면 하층부 조사', '[심층 탐사] 끝이 보이지 않는 균열', '[심층 탐사] 괴담의 뿌리 추적', '[심층 탐사] 미확인 층 매핑'];
 const JOB_TITLES = {
   apartment: ['엘리베이터에 없는 층 버튼이 생겼다는 민원', '복도 끝 현관문이 매일 하나씩 늘어남', '4층과 5층 사이에서 발소리가 들림', '관리실 CCTV에 같은 주민이 열두 명'],
@@ -278,6 +323,8 @@ const JOB_TITLES = {
   hospital: ['존재하지 않는 1004호에서 호출 벨', '별관 4층 버튼이 눌린 채 엘리베이터가 멈춤', '야간 회진 기록에 퇴원한 환자가 계속 등장', '빈 병실 침대가 매일 아침 정돈되어 있음'],
   sauna: ['수면실에서 잠든 손님의 자리가 두 개', '불가마 안에서 노크 소리', '양머리를 한 손님이 탈의실을 나가지 않음', '0번 사물함 열쇠가 매일 반납됨'],
   redev: ['철거된 집에 밤마다 불이 켜짐', '빨간 X가 하루에 하나씩 늘어남', '이사 간 세입자가 아직 문을 두드림', '철거반 장비가 밤사이 혼자 움직임'],
+  office: ['17층 사무실 불이 저절로 꺼진다는 경비 일지', '퇴근한 층에서 키보드 소리가 남', '회의실 예약표에 존재하지 않는 부서', '복사기가 밤새 같은 얼굴을 출력함'],
+  boiler: ['기계실 배관 노크 소리 민원', '지하 3층 보일러가 꺼지지 않음', '배전반 앞에서 발소리가 멈추지 않음', '환기구로 숨소리가 올라온다는 제보'],
   hq: ['청명 지점 사무동 야간 점검', '복사기가 밤새 같은 공고를 출력함', '결재 서류에 존재하지 않는 도장', '사내 방송에서 박수 소리만 나옴'],
   pcbang: ['특정 썸네일을 본 손님들이 계속 웃음', '꺼진 모니터에서 알림음이 울림', '빈자리에서 키보드 소리가 남', '"읽지 않음 1"이 사라지지 않는다는 제보'],
 };
@@ -292,9 +339,13 @@ const CLUE_TEXT = {
   subway: ['안내방송 녹음 파일. 노선 번호 자리만 지직거린다.', '노선도 스티커. 누군가 0호선을 손으로 그려 넣었다.', '커뮤니티 글: "막차 놓치면 0호선 탄다는 썰" 조회수 9만', '분실물 보관함 속 승차권 묶음. 전부 행선지가 비어 있다.'],
   school: ['계단 옆 낙서: "12, 13, 14..." 숫자가 점점 작아진다.', '졸업앨범 한 페이지. 얼굴 하나가 지워져 있다.', '괴담 게시판 인쇄물: "13번째 계단을 밟으면 출석부에서 지워진다"', '경비 일지: "학생 없음. 출석 대답 있음."'],
   pcbang: ['모니터에 띄워진 영상. 재생 시간이 무한대다.', '채팅 로그: "이거 끝까지 본 사람 있음?" "ㅋㅋㅋㅋㅋㅋ"', '공유 횟수가 계속 올라가는 게시물. 업로더 정보 없음.', '헤드셋 속에서 아직 누가 웃고 있다.'],
+  office: ['출입 기록. 17층 퇴근 기록이 전부 "23:00 — 처리되지 않음"이다.', '모니터 메모: "먼저 퇴근하세요. 저는 조금만 더 하고 갈게요." 날짜는 3년 전.', '직장인 커뮤니티: "한빛타워 17층 야근하면 옆자리에서 타자 소리 남"', '불 꺼진 책상 위, 아직 따뜻한 키보드.'],
+  boiler: ['점검 일지: "배관 노크 2회 — 응답 2회 — 3회째 기록 없음"', '배전반 문 안쪽에 손톱으로 긁은 숫자: 3, 3, 3.', '시설팀 단톡방: "지하 3층 혼자 가지 마. 두드리면 대답해"', '벽에 붙은 귀마개 한 짝. 다른 한 짝은 배관 속에서 덜컥거린다.'],
   hq: ['결재 서류 더미. 전부 같은 도장이 찍혀 있다.', '사내 게시판: "우리가 있어 모두가 안심합니다"', '서랍 속 아르바이트 명단. 이름 위에 줄이 그어져 있다.', '천장 스피커에서 박수 소리가 들린다.'],
 };
 const CAUSE_TEXT = {
+  office: '불 꺼진 사무실 한가운데, 모니터 하나만 켜져 있다. 화면 속 메신저 창에 "퇴근하셨어요?"가 끝없이 쌓여 간다.',
+  boiler: '보일러 배관 끝에 귀를 댄 채 굳어 버린 작업복. 배관 안쪽에서 똑, 똑, 똑 — 세 번째 노크가 들린다.',
   apartment: '복도 한가운데, 엘리베이터 패널만 덩그러니 서 있다. "4.5" 버튼에 수많은 손자국이 겹쳐 있다.',
   store: '계산대 위에 끝없이 이어진 영수증. 그 끝은 계산대 안쪽 어둠으로 빨려 들어간다.',
   subway: '선로 위에 놓인 낡은 스피커. 아무것도 연결되지 않았는데 안내방송이 흘러나온다.',

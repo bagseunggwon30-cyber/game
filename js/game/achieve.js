@@ -31,6 +31,12 @@ const ACHIEVEMENTS = {
   endAll: { name: '모든 이야기', desc: '결말 8가지를 모두 보았다.', skin: 'shade' },
   ngplus: { name: '재계약', desc: '2회차를 시작했다.' },
   trueEnd: { name: '모두의 퇴근', desc: '진짜 결말에 닿았다.', skin: 'dawn' },
+  lightsOn: { name: '불을 켜는 사람', desc: '정전 복구를 마쳤다.' },
+  darkWalk: { name: '어둠 속 산책', desc: '암흑 작업을 마쳤다.' },
+  noClap: { name: '고요한 발걸음', desc: '손뼉을 한 번도 치지 않고 암흑 작업을 마쳤다.', skin: 'silent' },
+  escortDone: { name: '배웅', desc: '길 잃은 아이를 입구까지 데려다주었다.' },
+  chaseDone: { name: '뒤돌아보지 않기', desc: '추격에서 한 번도 붙잡히지 않고 탈출했다.', skin: 'runner' },
+  guardFree: { name: '30년 만의 퇴근', desc: '경비 반장 최씨의 부탁을 모두 들어주었다.', skin: 'guard' },
 };
 // 외형: 업적으로 풀린다 (기기 전체 공통)
 const SKINS = {
@@ -45,6 +51,9 @@ const SKINS = {
   gold: { name: '도감 금박', pal: { vest: '#ffd27a', vestDark: '#c8a04a', strip: '#fff6c8', cap: '#8a6a2a', capDark: '#6a5020', logo: '#fff6c8' } },
   dawn: { name: '퇴근길 새벽빛', pal: { vest: '#f2b860', vestDark: '#c86a5a', strip: '#fff2d8', cap: '#1a2050', capDark: '#101438', logo: '#f2b860' } },
   shade: { name: '그림자', pal: PAL.shadow },
+  silent: { name: '무음 작업복', pal: { vest: '#3a3a4a', vestDark: '#2a2a36', strip: '#9ae8ff', cap: '#1a1a24', capDark: '#101018', logo: '#9ae8ff' } },
+  runner: { name: '야광 러너', pal: { vest: '#ff7a2a', vestDark: '#c85a1a', strip: '#fff2c8', cap: '#2a2230', capDark: '#1a141e', logo: '#ff7a2a' } },
+  guard: { name: '야간 경비 제복', pal: { vest: '#4a5a4a', vestDark: '#3a4a3a', strip: '#f2c230', cap: '#2a3a2a', capDark: '#1a2a1a', logo: '#f2c230' } },
 };
 const Achieve = {
   d: null,
@@ -92,6 +101,7 @@ const Achieve = {
     if (seen >= 4) this.unlock('end4');
     if (ENDING_ORDER.every((k) => endingsSeen().includes(k))) this.unlock('endAll');
     if (endingsSeen().includes('true')) this.unlock('trueEnd');
+    if (s.flags && s.flags.guardFree) this.unlock('guardFree');
   },
   // 화면 위쪽 업적 알림
   drawPopups(ctx) {

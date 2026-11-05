@@ -75,6 +75,16 @@ const Input = {
     if (now.size && !this.padKeys.size && typeof Sound !== 'undefined') Sound.unlock();
     this.padKeys = now;
   },
+  // 게임패드 진동 (터치 기기는 휴대폰 진동)
+  rumble(strong, weak, ms) {
+    if (typeof Settings !== 'undefined' && Settings.v.rumble === false) return;
+    try {
+      if (navigator.getGamepads) for (const gp of navigator.getGamepads()) {
+        if (gp && gp.vibrationActuator && gp.vibrationActuator.playEffect) gp.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak });
+      }
+      if (this.touchEnabled && navigator.vibrate) navigator.vibrate(Math.round(ms * strong));
+    } catch (e) { /* 지원하지 않는 기기 */ }
+  },
   padName() {
     if (!this.padId) return '';
     return this.padId.replace(/\(.*?\)/g, '').trim().slice(0, 28) || '게임패드';

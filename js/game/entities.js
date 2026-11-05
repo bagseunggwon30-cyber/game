@@ -157,7 +157,9 @@ class Player {
         else if (mx !== 0 && mx !== sign(this.vx)) this.sprinting = false;
       }
       this.lastMx = mx;
-      const atkSlow = (this.atkT > 0 && this.onGround ? 0.45 : 1) * (this.charging || this.guarding ? 0.35 : 1);
+      this.sneaking = ctrl && this.onGround && Input.down('down') && !this.standingOnPlatform() && this.atkT <= 0;
+      if (this.sneaking) { this.sprinting = false; this.sprintT = 0; }
+      const atkSlow = (this.atkT > 0 && this.onGround ? 0.45 : 1) * (this.charging || this.guarding ? 0.35 : 1) * (this.sneaking ? 0.45 : 1);
       const target = mx * D.speed * (this.sprinting ? SPRINT_MUL * (sc.perk('runner') ? 1.1 : 1) : 1) * atkSlow * sc.speedMul();
       const turning = mx !== 0 && sign(mx) !== sign(this.vx) && Math.abs(this.vx) > 0.3;
       const acc = this.onGround ? (turning ? 0.9 : 0.5) : 0.3;
@@ -196,7 +198,14 @@ class Player {
     const wasGround = this.onGround;
     moveBody(this, lvl, this.layer);
     if (this.dive > 0 && this.onGround) this.diveImpact();
-    if (this.onGround && !wasGround && this.landT <= 0) { Sound.play('land'); this.landT = 8; }
+    if (this.onGround && !wasGround && this.landT <= 0) { Sound.play('land'); this.landT = 8; sc.emitSound(this.cx, this.y + this.h, this.sneaking ? 40 : 90, this.layer, 'land'); }
+    // 발소리 (살금살금 걸으면 조용하다) / 벽에 부딪히면 진동
+    if (this.onGround && Math.abs(this.vx) > 0.6 && !this.sneaking) {
+      this.stepAcc = (this.stepAcc || 0) + Math.abs(this.vx);
+      if (this.stepAcc > 26) { this.stepAcc = 0; sc.emitSound(this.cx, this.y + this.h, this.sprinting ? 95 : 60, this.layer, 'step'); }
+    }
+    if (this.hitWall && !this.prevHitWall) sc.onWallBump(this.hitWall > 0 ? this.x + this.w : this.x, this.cy, this.hitWall);
+    this.prevHitWall = this.hitWall;
     if (this.landT > 0) this.landT--;
 
     // 안전 지점 기억
@@ -260,6 +269,7 @@ class Player {
     if (back) this.vy = -1.6;
     this.sprintT = back ? 0 : SPRINT_AT; this.sprinting = false;
     Sound.play(back ? 'step' : 'roll');
+    sc.emitSound(this.cx, this.y + this.h, back ? 50 : 75, this.layer, 'roll');
     for (let i = 0; i < 5; i++) sc.particles.push({ x: this.cx, y: this.y + this.h - 1, vx: -dir * rnd(0.4, 1.6), vy: rnd(-0.8, -0.1), life: 16, col: '#a8a4b8', size: rndi(1, 2) });
     if (!sc.s.flags.hintRoll) sc.s.flags.hintRoll = true;
   }
@@ -302,6 +312,7 @@ class Player {
     if (n >= 3) Achieve.unlock('meteor3');
     if (crit) this.st.remove('focus');
     this.dive = 0; this.diveLag = 8; this.diveCd = 24; this.vx = 0;
+    sc.emitSound(fx, fy, 150, this.layer, 'slam');
     Sound.play('slam');
     Gfx.shake(3 + Math.round(k), 10);
     for (let i = 0; i < 18; i++) {
@@ -422,6 +433,7 @@ class Player {
     } else if (w.cone) {
       this.coneBurst();
     } else Sound.play(kind === 'heavy' || kind === 'finisher' ? 'heavy' : 'swing');
+    sc.emitSound(this.cx, this.cy, kind === 'heavy' || kind === 'finisher' ? 120 : 70, this.layer, 'attack');
     if (kind === 'heavy') this.heavyBurst();
     // 폭주: 분노 3중첩 이상이면 충격파
     if (sc.D.m.rageWave && this.st.stacks('rage') >= 3) {
@@ -747,6 +759,30 @@ class Enemy {
         this.facing = sign(this.vx) || this.facing;
         break;
       }
+      case 'listener': {
+        // 눈이 없다: 들린 소리 쪽으로만 달려간다
+        const n = sc.lastNoise;
+        if (n && n.t > (this.heardT || 0) && n.layer === this.layer && Math.hypot(n.x - this.cx, n.y - this.cy) < n.r * 1.5) {
+          this.heardT = n.t; this.goalX = n.x; this.rushT = 100;
+          if (adx < 260 && sameLayer && !this.cryT) { this.cryT = 60; Sound.play('whisper'); }
+        }
+        if (this.cryT > 0) this.cryT--;
+        if (this.rushT > 0) {
+          this.rushT--;
+          const d = this.goalX - this.cx;
+          this.vx = approach(this.vx, Math.abs(d) < 6 ? 0 : sign(d) * this.spd * 4.4, 0.3);
+          if (Math.abs(d) < 6 && this.rushT > 30) this.rushT = 30;
+        } else {
+          if (this.t % 170 === 0) this.dir = -this.dir;
+          this.vx = approach(this.vx, this.dir * this.spd * 0.5, 0.05);
+        }
+        this.vy = Math.min(MAXFALL, this.vy + GRAV);
+        moveBody(this, lvl, this.layer);
+        if (this.hitWall) { this.dir = -this.dir; if (this.rushT > 0) this.rushT = Math.min(this.rushT, 10); }
+        this.facing = sign(this.vx) || this.facing;
+        this.moving = Math.abs(this.vx) > 0.3;
+        break;
+      }
       case 'lunger': {
         // 느릿느릿 다가오다가, 가까워지면 갑자기 덮친다
         if (this.lungeT > 0) { this.lungeT--; this.vx = this.lungeDir * this.spd * 6; }
@@ -973,6 +1009,7 @@ class Enemy {
       case 'steam': spr = SPR.steam[Math.floor(this.t / 9) % 3]; ox = -3; oy = -3; break;
       case 'xmark': spr = SPR.xmark[this.t % 100 < 10 ? 1 : 0]; break;
       case 'watcher': spr = SPR.watcher[this.moving ? Math.floor(this.t / 5) % 2 : 0]; oy = -3; break;
+      case 'listener': spr = (this.facing > 0 ? SPR.listener : SPR.listenerL)[this.moving ? Math.floor(this.t / 6) % 2 : 0]; oy = -4; break;
       case 'crawler': spr = (this.facing < 0 ? SPR.crawlerL : SPR.crawler)[Math.floor(this.t / 6) % 2]; oy = -4; break;
       default: break;
     }
@@ -1005,7 +1042,7 @@ class Enemy {
 }
 
 // 적에게 닿았을 때 붙는 상태 이상
-const ENEMY_HIT_EFFECT = { noise: 'erosion', crawler: 'slow', watcher: 'terror', notif: 'fear', echo: 'erosion', follower: 'fear', flyer: 'erosion',
+const ENEMY_HIT_EFFECT = { listener: 'fear', noise: 'erosion', crawler: 'slow', watcher: 'terror', notif: 'fear', echo: 'erosion', follower: 'fear', flyer: 'erosion',
   patient: 'fear', ivbag: 'erosion', sleeper: 'terror', steam: 'slow', tenant: 'fear', xmark: 'erosion' };
 
 function makePickup(o) {
