@@ -31,6 +31,7 @@ const Game = {
   update() {
     Input.update();
     this.frame++;
+    if (this.frame % 600 === 0) Achieve.flush();
     if (this.fade.dir === 1) {
       this.fade.a += this.fade.speed;
       if (this.fade.a >= 1) {
@@ -82,6 +83,7 @@ const Game = {
       y += 17;
     }
     ctx.globalAlpha = 1;
+    Achieve.drawPopups(ctx);
     if (this.fade.a > 0) { ctx.fillStyle = `rgba(0,0,0,${this.fade.a})`; ctx.fillRect(0, 0, VW, VH); }
     Gfx.present();
   },

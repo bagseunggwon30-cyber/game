@@ -607,6 +607,8 @@ function buildRoomMap(spec, seed) {
   const iSpots = [];
   for (const r of rooms) for (const m of r.marks.i) iSpots.push(m);
   rng.shuffle(iSpots);
+  // 뒷면 자판기 (현장 각인)
+  if (spec.shrine && iSpots.length) { const m = iSpots.pop(); out.interacts.push({ type: 'shrine', x: wx(m.x) - 2, y: wx(m.y + 1) - 28, w: 20, h: 28, layer: 'both' }); targets.push([m.x, m.y, 'front']); }
   for (const docId of [spec.doc || spec.randomDoc, spec.doc2]) {
     if (docId && iSpots.length) { const m = iSpots.pop(); out.interacts.push({ type: 'doc', id: docId, x: wx(m.x), y: wx(m.y + 1) - 14, w: 16, h: 14, layer: 'front' }); targets.push([m.x, m.y, 'front']); }
   }

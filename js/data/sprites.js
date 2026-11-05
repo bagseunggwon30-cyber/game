@@ -100,19 +100,64 @@ function buildHumanSet(P, o = {}, outlineColor = COL.ink) {
 }
 
 // 무기 그리기 (런타임). hx,hy 손 위치(월드), ang 라디안, face 방향
-function drawWeapon(ctx, kind, hx, hy, ang, face) {
+// 플레이어 스프라이트 (외형을 바꾸면 다시 만든다)
+function playerPalette() {
+  const sk = typeof SKINS !== 'undefined' && typeof Achieve !== 'undefined' ? SKINS[Achieve.skin()] : null;
+  return Object.assign({}, PAL.player, sk ? sk.pal : {});
+}
+function buildPlayerSprites(P) {
+  const G = Gfx;
+  SPR.player = buildHumanSet(P);
+  // 구르기: 몸을 웅크린 공 모양을 90°씩 돌린 4프레임
+  const base = G.makeCanvas(16, 16), b = base.getContext('2d');
+  G.circle(b, 8, 9, 6, P.vest);
+  G.px(b, 3, 10, 11, 4, P.vestDark);
+  G.px(b, 3, 9, 11, 1, P.strip);
+  G.px(b, 2, 9, 4, 4, P.pants); G.px(b, 2, 12, 3, 2, P.shoes);
+  G.circle(b, 11, 5, 3, P.skin);
+  G.px(b, 9, 2, 5, 2, P.cap); G.px(b, 13, 3, 2, 1, P.capDark);
+  G.px(b, 12, 5, 1, 1, P.eye);
+  G.px(b, 6, 5, 3, 2, P.shirt);
+  const R = [0, 1, 2, 3].map((i) => G.sprite(16, 16, (c) => {
+    c.save(); c.translate(8, 8); c.rotate(i * Math.PI / 2); c.drawImage(base, -8, -8); c.restore();
+  }));
+  SPR.playerRoll = { R, L: R.map((f) => G.flipH(f)) };
+}
+
+function drawWeapon(ctx, kind, hx, hy, ang, face, o = {}) {
   const G = Gfx;
   const cos = Math.cos(ang) * face, sin = Math.sin(ang);
-  const L = { mop: 15, bat: 12, baton: 11, spray: 0 }[kind] || 12;
+  const L = { mop: 15, bat: 12, baton: 11, spray: 0, umbrella: 15, shovel: 13, swatter: 10 }[kind] || 12;
   if (kind === 'spray') {
     G.px(ctx, hx - 1, hy - 3, 3, 5, '#d8e4ee');
     G.px(ctx, hx - 1, hy - 4, 3, 1, '#3aa0d8');
     return;
   }
-  const back = kind === 'mop' ? 4 : 2;
+  if (kind === 'extinguisher') {
+    // 빨간 소화기를 옆구리에 끼고 호스를 앞으로
+    G.px(ctx, hx - 3, hy - 4, 6, 9, '#0b0b10'); G.px(ctx, hx - 2, hy - 3, 4, 7, '#d8281e'); G.px(ctx, hx - 2, hy - 3, 1, 7, '#ff6a5a');
+    G.px(ctx, hx - 1, hy - 6, 2, 2, '#2a2a30');
+    G.line(ctx, hx, hy - 5, hx + face * 6, hy - 2, '#1a1a20', 1);
+    return;
+  }
+  if (kind === 'umbrella' && o.open) {
+    // 펼친 우산: 앞쪽에 반원
+    const cx = hx + face * 7, cy = hy - 2;
+    for (let a = -1.5; a <= 1.5; a += 0.12) {
+      const x = cx + Math.cos(a) * 9 * face, y = cy + Math.sin(a) * 11;
+      G.px(ctx, Math.round(x) - 1, Math.round(y) - 1, 3, 3, '#0b0b10');
+    }
+    for (let a = -1.45; a <= 1.45; a += 0.1) {
+      const x = cx + Math.cos(a) * 9 * face, y = cy + Math.sin(a) * 11;
+      G.px(ctx, Math.round(x), Math.round(y), 1, 1, Math.floor((a + 1.5) * 3) % 2 ? '#2b3d73' : '#3a5aa8');
+    }
+    G.line(ctx, hx, hy, cx, cy, '#2a2230', 1);
+    return;
+  }
+  const back = kind === 'mop' ? 4 : kind === 'umbrella' ? 3 : 2;
   const x0 = hx - cos * back, y0 = hy - sin * back;
   const x1 = hx + cos * L, y1 = hy + sin * L;
-  const col = { mop: '#b48a52', bat: '#c8ccd8', baton: '#2a2a36' }[kind];
+  const col = { mop: '#b48a52', bat: '#c8ccd8', baton: '#2a2a36', umbrella: '#2b3d73', shovel: '#8a6a3a', swatter: '#e8e0c8' }[kind];
   G.line(ctx, x0, y0, x1, y1, '#0b0b10', 3);
   G.line(ctx, x0, y0, x1, y1, col, 1);
   if (kind === 'mop') {
@@ -122,7 +167,18 @@ function drawWeapon(ctx, kind, hx, hy, ang, face) {
     G.line(ctx, hx + cos * 6, hy + sin * 6, x1, y1, '#e8ecf4', 2);
   } else if (kind === 'baton') {
     G.px(ctx, x1 - 1, y1 - 1, 3, 3, Math.random() < 0.5 ? '#9ae8ff' : '#4ab8ff');
+  } else if (kind === 'umbrella') {
+    // 접힌 우산 + 갈고리 손잡이
+    G.line(ctx, hx + cos * 4, hy + sin * 4, x1, y1, '#3a5aa8', 2);
+    G.px(ctx, x0 - 1, y0, 2, 2, '#2a2230');
+  } else if (kind === 'shovel') {
+    G.px(ctx, x1 - 3, y1 - 3, 7, 7, '#0b0b10'); G.px(ctx, x1 - 2, y1 - 2, 5, 5, '#a8acb8'); G.px(ctx, x1 - 2, y1 - 2, 5, 1, '#d8dce4');
+  } else if (kind === 'swatter') {
+    G.px(ctx, x1 - 4, y1 - 4, 9, 9, '#0b0b10'); G.px(ctx, x1 - 3, y1 - 3, 7, 7, '#3a6ad8');
+    for (let i = -2; i <= 2; i += 2) { G.px(ctx, x1 + i, y1 - 3, 1, 7, '#9ab8ff'); G.px(ctx, x1 - 3, y1 + i, 7, 1, '#9ab8ff'); }
+    if (Math.random() < 0.3) G.px(ctx, x1 + rndi(-4, 4), y1 + rndi(-4, 4), 1, 1, '#ffffff');
   }
+  if (o.glow) { ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 60) * 0.3; G.px(ctx, Math.round(x1) - 2, Math.round(y1) - 2, 4, 4, o.glow); ctx.globalAlpha = 1; }
 }
 
 // ── 적 스프라이트 ──
@@ -220,24 +276,7 @@ function buildEnemySprites() {
   }, { outlineColor: '#1a0a0a' }));
 
   // 플레이어 / NPC
-  SPR.player = buildHumanSet(PAL.player);
-  // 구르기: 몸을 웅크린 공 모양을 90°씩 돌린 4프레임
-  {
-    const P = PAL.player;
-    const base = G.makeCanvas(16, 16), b = base.getContext('2d');
-    G.circle(b, 8, 9, 6, P.vest);
-    G.px(b, 3, 10, 11, 4, P.vestDark);
-    G.px(b, 3, 9, 11, 1, P.strip);
-    G.px(b, 2, 9, 4, 4, P.pants); G.px(b, 2, 12, 3, 2, P.shoes);
-    G.circle(b, 11, 5, 3, P.skin);
-    G.px(b, 9, 2, 5, 2, P.cap); G.px(b, 13, 3, 2, 1, P.capDark);
-    G.px(b, 12, 5, 1, 1, P.eye);
-    G.px(b, 6, 5, 3, 2, P.shirt);
-    const R = [0, 1, 2, 3].map((i) => G.sprite(16, 16, (c) => {
-      c.save(); c.translate(8, 8); c.rotate(i * Math.PI / 2); c.drawImage(base, -8, -8); c.restore();
-    }));
-    SPR.playerRoll = { R, L: R.map((f) => G.flipH(f)) };
-  }
+  buildPlayerSprites(playerPalette());
   SPR.seo = buildHumanSet(PAL.seo, { cap: false, vest: false, glasses: true, hairLong: true, tie: '#7a1e2e' });
   SPR.min = buildHumanSet(PAL.min, { cap: false, ear: true });
   SPR.noeul = buildHumanSet(PAL.noeul, { cap: false, pony: true });

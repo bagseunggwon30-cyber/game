@@ -189,11 +189,48 @@ const BAG_UP_COST = [60000, 120000, 200000, 320000];
 function itemMax(s) { return ITEM_MAX + (s.bagLv || 0); }
 
 // 비품 (청명관리)
+// 정예 존재의 성질
+const ELITE_AFFIX = {
+  swift: { name: '가속', col: '#62d6e8', desc: '훨씬 빠르게 움직인다.' },
+  split: { name: '분열', col: '#c07cff', desc: '쓰러지면 둘로 갈라진다.' },
+  leech: { name: '흡혈', col: '#ff5a6a', desc: '닿으면 정신력을 빨아 먹고 체력을 회복한다.' },
+  shielded: { name: '방패', col: '#c8d0e0', desc: '앞에서 오는 가벼운 공격을 막는다. 뒤로 돌거나 강공격·마무리·내려찍기로.' },
+  cursed: { name: '저주', col: '#b86cff', desc: '가까이 있으면 공포가 차오르고, 닿으면 침식된다.' },
+  volatile: { name: '폭발', col: '#ff9a3a', desc: '쓰러지면 잠시 뒤 터진다. 굴러서 피하자.' },
+};
+
+// 현장 각인: 뒷면 자판기에서 셋 중 하나를 고르는, 그 임무(심층 탐사는 전체)에서만 유지되는 특성
+const PERKS = {
+  vampire: { name: '피 묻은 걸레', glyph: '혈', col: '#ff5a6a', desc: '존재를 쓰러뜨릴 때마다 체력 +3.' },
+  afterburn: { name: '잔상 폭발', glyph: '잔', col: '#9ae8ff', desc: '구르기가 끝난 자리가 터져 주변에 피해 8.' },
+  meteor: { name: '낙하 가속', glyph: '낙', col: '#ff9a3a', desc: '내려찍기 범위 +50%, 피해 +40%.' },
+  focusplus: { name: '깊은 집중', glyph: '집', col: '#9ae8ff', desc: '집중 지속 2배, 느려진 시간 +50%.' },
+  runner: { name: '질주 베기', glyph: '질', col: '#f2d040', desc: '질주 속도 +10%, 돌진 베기 피해 +60%.' },
+  finisher: { name: '마무리 강화', glyph: '끝', col: '#ffd27a', desc: '3타 마무리 일격 피해 +50%.' },
+  feareater: { name: '공포를 먹는 자', glyph: '포', col: '#ff8a5a', desc: '공포 50 이상일 때 공격력 +25%.' },
+  hopeecho: { name: '희망의 메아리', glyph: '희', col: '#f2d040', desc: '희망이 켜질 때 주변 존재에게 피해 15.' },
+  doubleroll: { name: '가벼운 몸', glyph: '경', col: '#c8d0e0', desc: '구르기 재사용 대기 -60%.' },
+  steadfast: { name: '굳은 정신', glyph: '굳', col: '#a796ff', desc: '뒷면 정신력 소모 -25%.' },
+  executioner: { name: '처형인', glyph: '처', col: '#c41e3a', desc: '체력 30% 이하인 존재에게 피해 +50%.' },
+  static: { name: '정전기', glyph: '전', col: '#62d6e8', desc: '명중 시 15% 확률로 근처 존재에게 번개가 튄다.' },
+  backborn: { name: '뒷면 태생', glyph: '뒤', col: '#ff5a8a', desc: '뒷면에서 공격력 +15%, 표면에서 -10%.' },
+  charmfactory: { name: '부적 공방', glyph: '부', col: '#f2d040', desc: '존재 8마리를 쓰러뜨릴 때마다 부적 1회 충전 (최대 3).' },
+  chargemaster: { name: '차지 숙련', glyph: '충', col: '#ffd27a', desc: '차지 시간 -40%.' },
+  lastresort: { name: '벼랑 끝', glyph: '벼', col: '#ff3a5a', desc: '체력 25% 이하일 때 받는 피해 -30%, 공격력 +20%.' },
+  greed: { name: '탐욕', glyph: '탐', col: '#9ae89a', desc: '현장에서 줍는 돈 +50%. 대신 받는 피해 +15%.' },
+  seeker: { name: '수집가의 눈', glyph: '눈', col: '#c07cff', desc: '아티팩트가 지도에 보이고, 주울 때 정신력 +10.' },
+};
+
+// heavyKind: 차지 강공격의 특수 효과 (spin 회전 베기 / homerun 날려 보내기 / discharge 방전 / quake 충격파)
 const WEAPONS = {
-  mop: { name: '대걸레', dmg: 10, reach: 26, cd: 24, kind: 'mop', desc: '기본 지급품. 길고 느리다.', price: 0 },
-  bat: { name: '알루미늄 배트', dmg: 15, reach: 20, cd: 20, kind: 'bat', desc: '짧지만 묵직하다.', price: 140000 },
-  spray: { name: '정화 스프레이', dmg: 7, reach: 0, cd: 14, kind: 'spray', ranged: true, desc: '원거리. 뿌린 곳이 잠시 정화된다.', price: 200000 },
-  baton: { name: '전기 충격봉', dmg: 18, reach: 22, cd: 22, kind: 'baton', stun: 40, desc: '맞은 존재를 잠시 경직시킨다.', price: 320000, rank: 2 },
+  mop: { name: '대걸레', dmg: 10, reach: 26, cd: 24, kind: 'mop', heavyKind: 'spin', desc: '기본 지급품. 길고 느리다. 차지: 앞뒤를 쓸어 내는 회전 베기.', price: 0 },
+  bat: { name: '알루미늄 배트', dmg: 15, reach: 20, cd: 20, kind: 'bat', heavyKind: 'homerun', desc: '짧지만 묵직하다. 차지: 존재를 멀리 날려 보내는 풀스윙.', price: 140000 },
+  spray: { name: '정화 스프레이', dmg: 7, reach: 0, cd: 14, kind: 'spray', ranged: true, desc: '원거리. 누르고 있으면 계속 뿌린다.', price: 200000 },
+  umbrella: { name: '장우산', dmg: 9, reach: 22, cd: 18, kind: 'umbrella', guard: true, desc: '누르고 있으면 펼쳐 막는다(탄은 되돌려 보냄). 펼치는 순간 막으면 패링. 떼면 찌르기.', price: 160000 },
+  extinguisher: { name: '소화기', dmg: 4, reach: 46, cd: 9, kind: 'extinguisher', cone: true, auto: true, desc: '짧은 거리에 분사. 누르고 있으면 계속 뿜는다. 맞은 존재는 둔화되고 밀려난다.', price: 180000 },
+  shovel: { name: '야전삽', dmg: 22, reach: 24, cd: 30, kind: 'shovel', heavyKind: 'quake', diveMul: 1.6, desc: '느리고 무겁다. 내려찍기 +60%. 차지: 땅을 갈라 양쪽으로 충격파.', price: 260000, rank: 1 },
+  baton: { name: '전기 충격봉', dmg: 18, reach: 22, cd: 22, kind: 'baton', stun: 40, heavyKind: 'discharge', desc: '맞은 존재를 잠시 경직시킨다. 차지: 주변 방전.', price: 320000, rank: 2 },
+  swatter: { name: '전기 파리채', dmg: 8, reach: 20, cd: 13, kind: 'swatter', shock: true, heavyKind: 'discharge', desc: '빠르다. 같은 존재를 3번 맞히면 근처로 번개가 튄다. 차지: 방전.', price: 300000, rank: 2 },
 };
 const GEAR = {
   vest2: { name: '형광 안전조끼 Pro', desc: '최대 체력 +20.', price: 110000, maxHp: 20 },

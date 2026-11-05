@@ -20,6 +20,7 @@ class MissionScene {
       theme: job.theme, obj: this.obj, diff: this.diff, seed: job.seed + (this.deep ? this.deep.stage * 7919 : 0), luk: this.s.stats.luk, deep: this.deep,
       tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc, doc2: ngDoc,
       weekMod: this.s.weekMod, rules: job.rules, patrol: job.patrol,
+      shrine: !job.rules && !(this.story && this.story.tutorial) && (!!this.deep || job.seed % 10 < 6),
       boss: this.story && this.story.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
     });
     this.lvl = this.gen.lvl;
@@ -29,11 +30,14 @@ class MissionScene {
     this.ng = ngMul(this.s);
     if (!carry) codexAdd(this.s, 'place', job.theme);
     this.enemies = this.gen.enemies.map((e) => this.ngScale(new Enemy(e.type, e.x, e.y, e.layer, this, this.diff)));
+    this.bombs = [];
+    this.pickElites();
     if (this.s.weekMod === 'boom') for (const e of this.enemies) { e.hp = Math.round(e.hp * 1.15); e.maxHp = e.hp; }
     if (this.s.weekMod === 'blackout') this.D.light -= 15;
     this.pickups = this.gen.pickups.map((p) => makePickup(p));
     this.interacts = this.gen.interacts.map((o) => Object.assign({ done: false, prog: 0, active: false }, o));
     this.projectiles = [];
+    this.bolts = [];
     this.particles = [];
     this.floaters = [];
     this.boss = null;
@@ -140,6 +144,7 @@ class MissionScene {
     const near = (dx, below) => this.enemies.some((e) => !e.dead && e.layer === p.layer && e.dmg > 0 && Math.abs(e.cx - p.cx) < dx && (!below || e.cy > p.cy + 20));
     if (!f.hintRollShown && near(90)) { f.hintRollShown = true; this.showHint('Shift(패드 B): 구르기 — 구르는 동안 무적. 방향키 없이 누르면 백스텝, 구른 직후 X는 돌진 베기.'); }
     else if (!f.hintDiveShown && f.hintRollShown && !p.onGround && near(50, true)) { f.hintDiveShown = true; this.showHint('공중에서 ↓+X: 내려찍기 — 높이 떨어질수록 세게, 주변을 함께 친다.'); }
+    else if (!f.hintComboShown && f.hintRollShown && p.combo >= 0 && near(60)) { f.hintComboShown = true; this.showHint('X를 박자에 맞춰 세 번 — 세 번째는 마무리 일격. X를 누르고 있으면 차지 강공격 (우산은 가드).'); }
     else if (!f.hintSprintShown && f.hintRollShown && p.sprinting && this.time > 900) { f.hintSprintShown = true; this.showHint('한 방향으로 계속 달리면 질주. 질주 중 X는 돌진 베기, 점프하면 더 멀리 난다.'); }
   }
   codexLook() {
@@ -150,9 +155,62 @@ class MissionScene {
       if (codexSee(this.s, 'enemy', e.type)) this.floatText(e.cx, e.y - 14, '도감 등록', '#c8a04a');
     }
   }
+  // 정예: 난이도·심층·회차에 따라 일부 존재가 특별한 성질을 띤다
+  pickElites() {
+    if ((this.story && this.story.tutorial) || this.job.rules || this.diff < 2) return;
+    const rng = new RNG(this.job.seed * 3 + 17 + (this.deep ? this.deep.stage * 31 : 0));
+    const chance = 0.04 + 0.025 * this.diff + (this.deep ? 0.02 * this.deep.stage : 0) + (this.ng - 1) * 0.1;
+    let left = 1 + Math.floor(this.diff / 2) + (this.deep ? 1 : 0);
+    const keys = Object.keys(ELITE_AFFIX);
+    for (const e of rng.shuffle(this.enemies.slice())) {
+      if (left <= 0) break;
+      if (e.type === 'smiler' || !rng.chance(chance)) continue;
+      let aff = keys.filter((k) => !(k === 'shielded' && e.def.ai === 'turret'));
+      aff = rng.shuffle(aff).slice(0, this.diff >= 5 || this.ng > 1 ? (rng.chance(0.4) ? 2 : 1) : 1);
+      e.makeElite(aff);
+      left--;
+    }
+  }
+  updateBombs() {
+    const p = this.player;
+    for (const b of this.bombs) {
+      if (--b.t > 0) continue;
+      // 폭발
+      Sound.play('slam'); Gfx.shake(4, 12);
+      for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2, v = rnd(1, 3.5); this.particles.push({ x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rndi(14, 26), col: pickR(['#ff9a3a', '#ffd27a', '#5a2030']), size: rndi(2, 3), g: 0.05 }); }
+      if (p.layer === b.layer && Math.hypot(p.cx - b.x, p.cy - b.y) < b.r && p.hurt(b.dmg, 6, b.x, 'attack')) this.applyHitEffect('terror');
+      for (const e of this.enemies) if (!e.dead && e.layer === b.layer && Math.hypot(e.cx - b.x, e.cy - b.y) < b.r) e.hurt(20, sign(e.cx - b.x) || 1, 20);
+    }
+    this.bombs = this.bombs.filter((b) => b.t > 0);
+  }
   ngScale(e) {
     if (this.ng > 1) { e.hp = Math.round(e.hp * this.ng); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (1 + (this.ng - 1) / 2)); }
     return e;
+  }
+
+  // 현장 각인 보유 여부
+  perk(id) { return !!(this.run && this.run.perks && this.run.perks.includes(id)); }
+  openShrine(o) {
+    if (o.done) return;
+    this.run.perks = this.run.perks || [];
+    const pool = Object.keys(PERKS).filter((k) => !this.run.perks.includes(k));
+    const rng = new RNG(this.job.seed + Math.round(o.x) * 13 + (this.deep ? this.deep.stage * 101 : 0));
+    const opts = rng.shuffle(pool.slice()).slice(0, 3);
+    if (!opts.length) { o.done = true; return; }
+    this.locked = true;
+    Sound.play('chime');
+    Game.push(new Menu({
+      title: '뒷면 자판기', titleRight: `각인 ${this.run.perks.length}`, w: 270, desc: true, onCancel: () => { this.locked = false; }, block: 12,
+      items: opts.map((k) => ({ label: `[${PERKS[k].glyph}] ${PERKS[k].name}`, col: PERKS[k].col, desc: PERKS[k].desc + (this.deep ? '  (이번 탐사 내내 유지)' : '  (이번 현장에서만 유지)'), onSelect: (m) => {
+        m.close(); this.locked = false; o.done = true;
+        this.run.perks.push(k);
+        Sound.play('artifact');
+        this.toast(`현장 각인: ${PERKS[k].name}`, PERKS[k].col);
+        for (let i = 0; i < 16; i++) this.particles.push({ x: o.x + o.w / 2, y: o.y + 10, vx: rnd(-2, 2), vy: rnd(-2.5, 0), life: 26, col: PERKS[k].col, size: 2, g: 0.05 });
+        if (this.run.perks.length >= 3) Achieve.unlock('perk3');
+        Achieve.add('perks');
+      } })),
+    }));
   }
 
   // ───── 공포 / 희망 / 상태 효과 ─────
@@ -189,6 +247,10 @@ class MissionScene {
     const had = p.st.has('hope');
     p.st.add('hope', p.st.left('hope') + frames);
     if (!had) {
+      if (this.perk('hopeecho')) {
+        for (const e of this.enemies) if (!e.dead && e.layer === p.layer && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 80) p.dealHit(e, 15, sign(e.cx - p.cx) || 1, { stun: 20, src: 'perk', noBonus: true, crit: false });
+        this.shockRing = { x: p.cx, y: p.cy + 8, t: 14, layer: p.layer, col: '#f2d040' };
+      }
       this.floatText(p.cx, p.y - 14, '희망' + (why ? ' · ' + why : ''), '#f2d040');
       Sound.play('anchor');
       if (!this.s.flags.hintHope) { this.s.flags.hintHope = true; this.showHint('희망! 공포가 덜 쌓이고, 정신력이 회복되고, 공격력이 오른다.'); }
@@ -222,6 +284,10 @@ class MissionScene {
   }
   onKill(e) {
     const p = this.player, m = this.m;
+    if (this.perk('charmfactory')) {
+      this.run.charmKills = (this.run.charmKills || 0) + 1;
+      if (this.run.charmKills % 8 === 0 && p.shield < 3) { p.shield++; this.floatText(p.cx, p.y - 16, '부적 충전', '#f2d040'); Sound.play('anchor'); }
+    }
     if (m.rageOnKill) this.addRage();
     if (m.fearLeech && p.fear >= 50) { p.san = Math.min(p.maxSan, p.san + 5); this.floatText(p.cx, p.y - 16, 'SAN +5', COL.san); }
   }
@@ -611,6 +677,9 @@ class MissionScene {
         this.floatText(p.cx, p.y - 14, '"…응?"', '#c8c4d8');
         this.ruleViolate('noAnswer', '부르는 목소리에 대답했다');
         break;
+      case 'shrine':
+        this.openShrine(o);
+        break;
       case 'rulenote': {
         o.done = true;
         const R = this.rule;
@@ -910,6 +979,11 @@ class MissionScene {
     this.enemies = this.enemies.filter((e) => !e.dead);
     if (this.boss && !this.slowSkip) this.boss.update();
     if (this.shockRing && --this.shockRing.t <= 0) this.shockRing = null;
+    if (!this.slowSkip) this.updateBombs();
+    // 저주 정예 근처에서는 공포가 차오른다
+    if (this.time % 10 === 0) for (const e of this.enemies) if (!e.dead && e.elite && e.elite.includes('cursed') && e.layer === p.layer && Math.hypot(e.cx - p.cx, e.cy - p.cy) < 70) { this.addFear(1.5); break; }
+    for (const b of this.bolts) b.t--;
+    this.bolts = this.bolts.filter((b) => b.t > 0);
     if (this.finaleRoute) this.updateFinaleAlly();
     if (this.time % 20 === 0) { this.codexLook(); this.movementHints(); }
     this.updateProjectiles();
@@ -927,7 +1001,7 @@ class MissionScene {
         let mul = (this.arenaActive ? 0.5 : 1) * (this.s.weekMod === 'flood' ? 1.25 : 1);
         if (this.frightened() && !this.m.coldMind) mul *= 1.25;
         if (panic) mul *= 2;
-        p.san -= this.D.drain * mul / 60;
+        p.san -= this.D.drain * mul * (this.perk('steadfast') ? 0.75 : 1) / 60;
         this.backTime++;
         if (this.backTime % 60 === 0) addContamination(this.s, 0.05);
       } else if (panic) {
@@ -972,6 +1046,7 @@ class MissionScene {
         { label: '계속하기', desc: '현장으로 돌아간다.', onSelect: (m) => m.close() },
         { label: '소지품', desc: '소모품 목록을 확인한다.', onSelect: () => this.showItems() },
         { label: '내 상태', desc: '능력치를 확인한다.', onSelect: () => Game.push(new StatusView(s)) },
+        ...((this.run.perks || []).length ? [{ label: '현장 각인', desc: '이번에 고른 각인 목록', onSelect: () => Game.push(new TextView('현장 각인', this.run.perks.map((k) => `[${PERKS[k].glyph}] ${PERKS[k].name} — ${PERKS[k].desc}`).join('\n'))) }] : []),
         { label: '환경 설정', desc: '음량 · 화면 흔들림 · 깜빡임 줄이기 · 글자 속도 · 조작법', onSelect: () => openSettings() },
         { label: '상태 효과 안내', desc: '공포·패닉·희망 등 버프/디버프 설명', onSelect: () => Game.push(new TextView('상태 효과', STATUS_HELP_TEXT)) },
         ...(this.rule ? [{ label: '근무 수칙', desc: '오늘 밤의 근무 수칙표를 다시 본다.', onSelect: () => Game.push(new TextView('야간 근무 수칙', this.ruleSheetText(), null, { paper: true })) }] : []),
@@ -1009,7 +1084,8 @@ class MissionScene {
           if (pr.layer === 'any' && e.layer !== 'back') continue;
           if (pr.pierce) { pr.hit = pr.hit || new Set(); if (pr.hit.has(e)) continue; }
           if (overlap(box, e)) {
-            e.hurt(pr.dmg, sign(pr.vx) || 1, pr.kind === 'spray' ? 6 : 0);
+            const shielded = e.elite && e.elite.includes('shielded') && sign(pr.vx) === -e.facing;
+            e.hurt(pr.dmg * (shielded ? 0.2 : 1), sign(pr.vx) || 1, pr.kind === 'spray' ? 6 : 0);
             if (pr.pierce) { pr.hit.add(e); continue; }
             pr.life = 0; if (pr.kind === 'salt') this.saltBurst(pr); break;
           }
@@ -1021,7 +1097,12 @@ class MissionScene {
       } else if (pr.layer === p.layer && !p.dead) {
         if (Math.hypot(pr.x - p.cx, pr.y - p.cy) < pr.r + 7) {
           if (p.rollInv > 0) p.perfectDodge('attack');      // 구르면 탄을 뚫고 지나간다
-          else { if (p.hurt(pr.dmg, pr.san || 0, pr.x, 'attack')) this.applyHitEffect(pr.eff); pr.life = 0; }
+          else if (p.guarding && (sign(pr.x - p.cx) === p.facing || sign(pr.vx) === -p.facing)) {
+            // 우산으로 막으면 탄을 되돌려 보낸다 (펼치는 순간이면 패링)
+            if (p.guardT <= 10) p.parry('attack');
+            pr.from = 'player'; pr.vx = -pr.vx * 1.3 || p.facing * 3; pr.vy *= -0.3; pr.dmg = (pr.dmg || 8) * 2; pr.col = '#ffd27a'; pr.life = 60; pr.kind = pr.kind === 'drop' ? 'drop' : 'reflect';
+            Sound.play('stamp');
+          } else { if (p.hurt(pr.dmg, pr.san || 0, pr.x, 'attack')) this.applyHitEffect(pr.eff); pr.life = 0; }
         }
       }
     }
@@ -1053,17 +1134,20 @@ class MissionScene {
           const a = ARTIFACTS[k.id];
           this.run.found.push(k.id);
           codexAdd(this.s, 'art', k.id);
+          if (this.perk('seeker')) { p.san = Math.min(p.maxSan, p.san + 10); this.floatText(p.cx, p.y - 16, 'SAN +10', COL.san); }
           this.addHope(8);
           Sound.play('artifact');
           this.toast(`아티팩트 획득: ${a.name} [${RARITY[a.rarity].name}]`, RARITY[a.rarity].col);
           for (let i = 0; i < 20; i++) this.particles.push({ x: k.x + 7, y: k.by + 7, vx: rnd(-2, 2), vy: rnd(-2.5, 0.5), life: 30, col: RARITY[a.rarity].col, size: 2, g: 0.05 });
           break;
         }
-        case 'cash':
-          this.run.cash += k.amount;
+        case 'cash': {
+          const amt = Math.round(k.amount * (this.perk('greed') ? 1.5 : 1) / 100) * 100;
+          this.run.cash += amt;
           Sound.play('coin');
-          this.floatText(p.cx, p.y - 6, won(k.amount), '#9ae89a');
+          this.floatText(p.cx, p.y - 6, won(amt), '#9ae89a');
           break;
+        }
         case 'item': {
           const cur = this.s.items[k.id] || 0;
           if (cur >= itemMax(this.s)) { k.dead = false; continue; }
@@ -1238,10 +1322,34 @@ class MissionScene {
     }
     // 플레이어
     if (!p.dead) p.draw(ctx, cam);
+    // 폭발 예고
+    for (const b of this.bombs) {
+      if (b.layer !== L) continue;
+      const k = 1 - b.t / 54, blink = b.t < 18 ? b.t % 4 < 2 : b.t % 10 < 5;
+      ctx.globalAlpha = 0.35 + k * 0.5;
+      ctx.fillStyle = blink ? '#ff3a1a' : '#ff9a3a';
+      for (let a = 0; a < Math.PI * 2; a += 0.2) ctx.fillRect(Math.round(b.x + Math.cos(a) * b.r - cam.x), Math.round(b.y + Math.sin(a) * b.r * 0.6 - cam.y), 2, 2);
+      ctx.fillRect(Math.round(b.x - cam.x) - 2, Math.round(b.y - cam.y) - 2, 5, 5);
+      ctx.globalAlpha = 1;
+    }
+    // 번개 (감전 연쇄)
+    for (const b of this.bolts) {
+      if (b.layer !== L) continue;
+      ctx.globalAlpha = b.t / 10;
+      ctx.fillStyle = b.t % 2 ? '#ffffff' : '#9ae8ff';
+      const n = 7;
+      let px0 = b.x0, py0 = b.y0;
+      for (let i = 1; i <= n; i++) {
+        const k = i / n, px1 = lerp(b.x0, b.x1, k) + (i < n ? rnd(-4, 4) : 0), py1 = lerp(b.y0, b.y1, k) + (i < n ? rnd(-5, 5) : 0);
+        Gfx.line(ctx, Math.round(px0 - cam.x), Math.round(py0 - cam.y), Math.round(px1 - cam.x), Math.round(py1 - cam.y), ctx.fillStyle, 1);
+        px0 = px1; py0 = py1;
+      }
+      ctx.globalAlpha = 1;
+    }
     if (this.shockRing && this.shockRing.layer === L) {
       const r = this.shockRing, k = 1 - r.t / 14;
       ctx.globalAlpha = 1 - k;
-      ctx.fillStyle = L === 'back' ? '#ff8ab0' : '#f4f0e6';
+      ctx.fillStyle = r.col || (L === 'back' ? '#ff8ab0' : '#f4f0e6');
       const rad = 6 + k * 34;
       for (let a = Math.PI; a <= Math.PI * 2 + 0.01; a += 0.18) ctx.fillRect(Math.round(r.x + Math.cos(a) * rad - cam.x), Math.round(r.y + Math.sin(a) * rad * 0.45 - cam.y), 2, 1);
       ctx.globalAlpha = 1;
@@ -1257,6 +1365,12 @@ class MissionScene {
         for (let k = -6; k <= 6; k++) ctx.fillRect(x + Math.round(Math.cos(k / 6) * 4) * sign(pr.vx), y + k, 2, 1);
         ctx.fillStyle = '#fff2c8'; ctx.fillRect(x - 1, y - 3, 2, 6);
       } else if (pr.kind === 'wave') { ctx.fillStyle = pr.col; ctx.fillRect(x - 4, y - 6, 8, 12); ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 4, 2, 8); }
+      else if (pr.kind === 'quake') {
+        // 땅을 가르는 충격파
+        ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - 5, y - 2, 10, 9);
+        ctx.fillStyle = pr.col; for (let k = 0; k < 4; k++) ctx.fillRect(x - 4 + k * 2, y + 6 - (k % 2 ? 7 : 4), 2, k % 2 ? 7 : 4);
+        if (this.time % 3 === 0) this.particles.push({ x: pr.x, y: pr.y + 6, vx: rnd(-0.5, 0.5), vy: rnd(-1.5, -0.4), life: 12, col: '#8a7a5a', size: 1, g: 0.1 });
+      }
       else {
         ctx.fillStyle = '#0b0b10'; ctx.fillRect(x - pr.r - 1, y - pr.r - 1, pr.r * 2 + 2, pr.r * 2 + 2);
         ctx.fillStyle = pr.col; ctx.fillRect(x - pr.r, y - pr.r, pr.r * 2, pr.r * 2);
@@ -1277,7 +1391,7 @@ class MissionScene {
     // 상호작용 안내 (키캡 + 이름)
     if (this.prompt && !this.locked) {
       const o = this.prompt;
-      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문', patrol: '순찰 확인', reddoor: '문 열기', rulenote: '메모 읽기', voice: '대답하기' }[o.type];
+      const label = { entry: '철수', exit: '퇴근', clue: '조사', cause: '해소', rift: '앵커 설치', doc: '읽기', core: '결재함', descend: '내려가기', checkpoint: '임시 앵커', gate: this.hasKey ? '봉인 풀기' : '봉인문', patrol: '순찰 확인', reddoor: '문 열기', rulenote: '메모 읽기', voice: '대답하기', shrine: '각인 고르기' }[o.type];
       const tx = Math.round(o.x + o.w / 2 - cam.x), ty = Math.round(o.y - 16 - cam.y + Math.sin(this.time * 0.15) * 1.5);
       const w = Gfx.measure(ctx, label, { small: true }) + 22;
       UI.card(ctx, tx - w / 2, ty - 2, w, 15, { fill: 'rgba(12,11,19,0.9)', border: UI.C.line2 });
@@ -1402,6 +1516,21 @@ class MissionScene {
         G.px(ctx, x, y, o.w, o.h, '#0b0b10'); G.px(ctx, x + 1, y + 1, o.w - 2, o.h - 1, '#7a0a14'); G.px(ctx, x + 3, y + 3, o.w - 6, o.h - 4, '#a8121e');
         G.px(ctx, x + o.w - 7, y + 16, 3, 3, '#f2c230');
         if (t % 90 < 6) { ctx.fillStyle = 'rgba(255,40,60,0.4)'; ctx.fillRect(x - 2, y - 2, o.w + 4, o.h + 2); }
+        break;
+      }
+      case 'shrine': {
+        // 뒷면 자판기: 표면에선 고장 난 자판기, 뒷면에선 붉게 빛난다
+        const back = L === 'back';
+        G.px(ctx, x, y, o.w, o.h, '#0b0b10');
+        G.px(ctx, x + 1, y + 1, o.w - 2, o.h - 1, o.done ? '#3a3440' : back ? '#5a1020' : '#7a7a86');
+        G.px(ctx, x + 3, y + 3, o.w - 6, 12, o.done ? '#2a2630' : back ? '#1a0408' : '#3a4050');
+        if (!o.done) {
+          const glyphs = Object.values(PERKS);
+          for (let i = 0; i < 3; i++) { const P = glyphs[(Math.floor(t / 40) + i * 5) % glyphs.length]; G.px(ctx, x + 4 + i * 4, y + 5, 3, 8, back ? P.col : '#6a7080'); }
+          G.px(ctx, x + 6, y + 18, 8, 2, back && t % 30 < 20 ? '#ff3a5a' : '#2a2630');
+          if (back) { ctx.globalAlpha = 0.25 + Math.sin(t * 0.08) * 0.12; G.px(ctx, x - 3, y - 3, o.w + 6, o.h + 3, '#ff3a5a'); ctx.globalAlpha = 1; }
+        }
+        G.px(ctx, x + 2, y + o.h - 5, o.w - 4, 3, '#0b0b10');
         break;
       }
       case 'rulenote':
@@ -1607,6 +1736,8 @@ class MissionScene {
     }
     if (this.gen.arena && !this.objState.bossDone) { const k = Math.floor(this.gen.arena.x0 / (RW * TS)) + ',' + Math.floor(this.gen.arena.y0 / (RH * TS)); marks[k] = '#ff5a6a'; }
     for (const k of this.pickups.filter((q) => q.type === 'key').map(roomOf)) if (this.visited.has(k)) marks[k] = COL.yellow;
+    if (this.perk('seeker')) for (const q of this.pickups) if (q.type === 'artifact' && !q.dead) { const k = roomOf({ x: q.x, y: q.by || q.y }); marks[k] = marks[k] || '#c07cff'; }
+    for (const o of this.interacts) if (o.type === 'shrine' && !o.done && this.visited.has(roomOf(o))) marks[roomOf(o)] = marks[roomOf(o)] || '#ff5a8a';
     const known = (r) => this.visited.has(r.gx + ',' + r.gy);
     const nearKnown = (r) => known(r) || M.rooms.some((q) => known(q) && Math.abs(q.gx - r.gx) + Math.abs(q.gy - r.gy) === 1 &&
       ((q.gx === r.gx + 1 && r.conns.R) || (q.gx === r.gx - 1 && r.conns.L) || (q.gy === r.gy + 1 && r.conns.D) || (q.gy === r.gy - 1 && r.conns.U)));
@@ -1722,6 +1853,13 @@ class MissionScene {
       const kw = UI.keycap(ctx, 33, iy + 13, 'V');
       Gfx.text(ctx, '사용', 36 + kw, iy + 13, C.mute, { small: true });
     } else Gfx.text(ctx, '빈 슬롯', 33, iy + 7, C.mute, { small: true });
+    // ── 현장 각인 (소모품 슬롯 옆) ──
+    const perks = this.run.perks || [];
+    perks.forEach((k, i) => {
+      const P = PERKS[k], px = 96 + i * 13, py = iy + 9;
+      UI.card(ctx, px, py, 12, 12, { fill: 'rgba(12,11,19,0.85)', border: P.col });
+      Gfx.text(ctx, P.glyph, px + 6, py + 1, P.col, { small: true, align: 'center' });
+    });
     // ── 근무 시계 / 수칙 위반 ──
     if (this.rule) {
       const R = this.rule, E = R.ev;
@@ -1844,4 +1982,4 @@ class DeepRest {
 function i18Depth(n) { return `총 ${n}층`; }
 
 const STATUS_HELP_TEXT = '집중: 구르기 무적 중에 공격이 닿으면(아슬아슬 회피) 잠깐 시간이 느려지고, 다음 공격이 반드시 치명타.\n공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)\n\n신호 불량(통신 교란): 알림 떼·전파 오염 구역·일부 보스가 일으킨다.\nHUD 수치·상태 아이콘·목표·알림이 거짓이 된다. 표면으로 나가면 회복.\n전파 차단 호일, 차폐 폰케이스, 의심 갈래 "간파"로 대응.';
-const CONTROLS_TEXT = '← →  이동 (계속 누르면 질주)\nZ / Space  점프   ·   ↓ 길게  발판 아래로\nX  공격   ·   C  뒤집기 (표면 ↔ 뒷면)\nShift  구르기 (무적 · 방향키 두 번도 가능)\n방향키 없이 Shift  백스텝 (보는 방향 유지)\n구르기 · 질주 중 X  돌진 베기\n공중에서 ↓+X  내려찍기\n↑  조사 · 상호작용   ·   Esc  일시정지\nV  소모품 사용   ·   Q 또는 ↓+V  소모품 변경\n메뉴: Z 확인 · X 취소   ·   허브: ↑ 들어가기 · V 휴대폰';
+const CONTROLS_TEXT = '← →  이동 (계속 누르면 질주)\nZ / Space  점프   ·   ↓ 길게  발판 아래로\nX  공격 — 박자 맞춰 3번이면 마무리 일격\nX 길게  차지 강공격 (우산: 가드 · 펼치는 순간 패링)\nC  뒤집기 (표면 ↔ 뒷면)   ·   ↑  조사 / 상호작용\nShift  구르기 (무적 · 방향키 두 번도 가능)\n방향키 없이 Shift  백스텝 (보는 방향 유지)\n구르기 · 질주 중 X  돌진 베기   ·   공중 ↓+X  내려찍기\nV  소모품 사용   ·   Q 또는 ↓+V  소모품 변경   ·   Esc  일시정지\n메뉴: Z 확인 · X 취소   ·   허브: ↑ 들어가기 · V 휴대폰';

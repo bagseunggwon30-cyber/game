@@ -61,12 +61,16 @@ class TitleScene {
       } else this.newGame(carry);
     } });
     items.push({ label: '설정 · 조작법', desc: '소리 · 화면 흔들림 · 깜빡임 줄이기 · 글자 속도 · 조작 안내', onSelect: () => openSettings() });
-    items.push({ label: '엔딩 기록', desc: '지금까지 본 결말과 힌트', onSelect: () => {
-      const seen = endingsSeen();
-      const all = ENDING_ORDER;
-      Game.push(new TextView('엔딩 기록 ' + all.filter((k) => seen.includes(k)).length + '/' + all.length,
-        all.map((k) => (seen.includes(k) ? '◆ ' + ENDINGS[k].name + (ENDINGS[k].trueEnd ? '  (TRUE)' : '') : '◇ ??? — ' + ENDING_HINTS[k])).join('\n')));
-    } });
+    items.push({ label: '기록', desc: '엔딩 기록 · 업적 · 옷장', onSelect: () => Game.push(new Menu({ title: '기록', w: 220, desc: true, items: [
+      { label: '엔딩 기록', desc: '지금까지 본 결말과 힌트', onSelect: () => {
+        const seen = endingsSeen();
+        const all = ENDING_ORDER;
+        Game.push(new TextView('엔딩 기록 ' + all.filter((k) => seen.includes(k)).length + '/' + all.length,
+          all.map((k) => (seen.includes(k) ? '◆ ' + ENDINGS[k].name + (ENDINGS[k].trueEnd ? '  (TRUE)' : '') : '◇ ??? — ' + ENDING_HINTS[k])).join('\n')));
+      } },
+      { label: '업적', right: `${Object.keys(ACHIEVEMENTS).filter((id) => Achieve.has(id)).length}/${Object.keys(ACHIEVEMENTS).length}`, desc: '기기 전체에서 공통으로 쌓인다.', onSelect: () => openAchievements() },
+      { label: '옷장', desc: '업적으로 푼 외형을 고른다.', onSelect: () => openWardrobe() },
+    ] })) });
     this.menu = new Menu({ items, y: 113, rh: 15, dim: false, onCancel: false, plain: true });
     Game.push(this.menu);
   }
@@ -100,7 +104,7 @@ class TitleScene {
     // 플레이어 실루엣
     const f = SPR.player.R[2 + Math.floor(this.t / 7) % 4];
     ctx.drawImage(back ? SPR.follower.R[2 + Math.floor(this.t / 7) % 4] : f, 40, 166);
-    Gfx.text(ctx, 'v1.1', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+    Gfx.text(ctx, 'v1.3', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
     const seenN = endingsSeen().length;
     if (seenN) Gfx.text(ctx, `결말 ${ENDING_ORDER.filter((k) => endingsSeen().includes(k)).length}/${ENDING_ORDER.length}`, 6, 4, COL.dim, { small: true });
   }
@@ -228,6 +232,10 @@ class ResultScene {
       if (noDmg) pay = Math.round(pay * 1.1);
       const perfect = full && run.ruleViol === 0;
       if (perfect) pay = Math.round(pay * 1.3);
+      Achieve.unlock('firstShift');
+      if (noDmg && full) Achieve.unlock('noDamage');
+      if (perfect) Achieve.unlock('perfectRule');
+      if (deep && full) Achieve.unlock('deepFull');
       pay = Math.round(pay / 1000) * 1000;
       const r = addMoney(s, pay + run.cash);
       if (deep) this.log.push(['탐사 깊이', `${deep.cleared}/${deep.stages}층${full ? ' · 완주' : ''}`, '#b86cff']);
@@ -287,6 +295,9 @@ class ResultScene {
       s.record.fails++;
     }
     if (run.docs.length) this.log.push(['진실 조각', '+' + run.docs.length, COL.cyan]);
+    if (run.elites) this.log.push(['정예 처치', run.elites + '마리', '#ffd27a']);
+    if (run.parries) this.log.push(['패링', run.parries + '회', '#ffd27a']);
+    Achieve.check(s); Achieve.flush();
     this.rankBefore = rankBefore;
   }
   update() {
@@ -414,6 +425,7 @@ class EndingScene {
   enter() {
     recordEnding(this.key);
     if (Game.state) saveCarry(Game.state);
+    Achieve.check(Game.state); Achieve.flush();
     Sound.setAmbience(this.key === 'merge' || this.key === 'dissolve' ? 'back' : this.key === 'true' ? 'dawn' : 'title');
     Game.push(new DialogModal(this.e.lines, () => { this.phase = 'title'; this.t = 0; Sound.play('resolve'); }));
   }

@@ -120,6 +120,7 @@ class HubScene {
     this.bg = drawStreet(this.s.timeOfDay === 'night', this.s.contamination);
     this.bgKey = this.s.timeOfDay + ':' + Math.floor(this.s.contamination / 15);
     Sound.setAmbience(this.s.timeOfDay === 'night' ? 'hubnight' : 'hub');
+    Achieve.check(this.s); Achieve.flush();
     if (this.s.spawnAt) { this.player.x = this.s.spawnAt; delete this.s.spawnAt; }
     this.cam = clamp(this.player.x - VW / 2, 0, HUB_W - VW);
     saveGame(this.s);
@@ -304,6 +305,7 @@ class HubScene {
       { name: '메모', icon: 'memo', badge: null, desc: `진실 조각 ${s.truths.length}/${truthList(s).length} — 현장에서 모은 문서.`, open: () => this.openTruths() },
       { name: '마음 지도', icon: 'mind', badge: s.sp || null, desc: '스킬트리. 마음 조각(SP)으로 노드를 해금한다.', open: () => Game.push(new SkillTreeView(s)) },
       { name: '내 상태', icon: 'status', desc: '능력치 · 능력 · 장비.', open: () => Game.push(new StatusView(s)) },
+      { name: '업적', icon: 'trophy', badge: null, desc: `업적 ${Object.keys(ACHIEVEMENTS).filter((id) => Achieve.has(id)).length}/${Object.keys(ACHIEVEMENTS).length} — 달성하면 외형이 풀린다(옥탑방 옷장).`, open: () => openAchievements() },
       { name: '도감', icon: 'codex', badge: codexClaimable(s) ? '!' : null, desc: `현장 기록 ${codexCount(s)}/${codexTotal()} — 마주친 존재, 아티팩트, 밈, 장소.`, open: () => openCodex(s) },
       { name: '설정', icon: 'settings', desc: '환경 설정, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
     ], night ? '23:40' : '09:12', `DAY ${s.day} · ${night ? '밤' : '낮'}`));
@@ -403,6 +405,7 @@ class HubScene {
       refresh: () => [
         { label: '은닉처', right: s.stash.length + '개', desc: '장판 밑에 숨겨 둔 아티팩트. 흡수하면 강해지지만 오염된다.', onSelect: () => this.openStash() },
         { label: '마음 지도', right: 'SP ' + (s.sp || 0), desc: '스킬트리. 다섯 갈래의 마음을 키운다.', onSelect: () => Game.push(new SkillTreeView(s)) },
+        { label: '옷장', right: SKINS[Achieve.skin()].name, desc: '업적으로 푼 외형으로 갈아입는다.', onSelect: () => openWardrobe() },
         { label: '잠자기', desc: s.workedToday ? '오늘은 여기까지. 다음 날로 넘어간다.' : '일하지 않고 하루를 넘긴다.', onSelect: () => this.sleep() },
         { label: '휴대폰', desc: '알바 목록, 메시지, 메모.', onSelect: () => this.openPhone() },
         { label: '저장하기', desc: '진행 상황을 저장한다. (허브에 올 때마다 자동 저장)', onSelect: () => { saveGame(s); Game.toast('저장했다.', COL.green); } },
@@ -588,7 +591,7 @@ class HubScene {
           if (!w.price) continue;
           const owned = s.weapons.includes(k);
           const lock = (w.rank || 0) > r;
-          items.push({ label: '[무기] ' + w.name, right: owned ? '보유' : won(w.price), disabled: owned || lock || s.money < w.price, desc: `${w.desc} 공격력 ${w.dmg}` + (lock ? `  — ${RANKS[w.rank].name} 이상` : ''), onSelect: (m) => { if (spendMoney(s, w.price)) { s.weapons.push(k); s.weapon = k; Sound.play('buy'); m.o.titleRight = won(s.money); saveGame(s); } } });
+          items.push({ label: '[무기] ' + w.name, right: owned ? '보유' : won(w.price), disabled: owned || lock || s.money < w.price, desc: `${w.desc} 공격력 ${w.dmg}` + (lock ? `  — ${RANKS[w.rank].name} 이상` : ''), onSelect: (m) => { if (spendMoney(s, w.price)) { s.weapons.push(k); s.weapon = k; Sound.play('buy'); m.o.titleRight = won(s.money); Achieve.check(s); saveGame(s); } } });
         }
         for (const k in GEAR) {
           const g = GEAR[k];

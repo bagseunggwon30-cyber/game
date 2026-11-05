@@ -471,7 +471,7 @@ function artifactDesc(id) {
 }
 
 // ── 환경 설정 화면 (←→ 값 변경) ──
-const PAD_CONTROLS_TEXT = '이동 · 메뉴 이동 — 왼쪽 스틱 / 십자키\n점프 · 확인 — A\n취소 · 구르기 — B  (LT / RT도 구르기)\n공격 — X  (공중에서 ↓+X 내려찍기)\n뒤집기 (표면 ↔ 뒷면) — Y\n소모품 사용 — RB  ·  소모품 변경 — LB\n조사 · 상호작용 — ↑\n일시정지 — Start  ·  휴대폰 — Select\n\n표준 배치(Xbox 기준) 게임패드를 지원한다.';
+const PAD_CONTROLS_TEXT = '이동 · 메뉴 이동 — 왼쪽 스틱 / 십자키\n점프 · 확인 — A\n취소 · 구르기 — B  (LT / RT도 구르기)\n공격 — X  (3연타 콤보 · 누르고 있으면 차지 · 공중에서 ↓+X 내려찍기)\n뒤집기 (표면 ↔ 뒷면) — Y\n소모품 사용 — RB  ·  소모품 변경 — LB\n조사 · 상호작용 — ↑\n일시정지 — Start  ·  휴대폰 — Select\n\n표준 배치(Xbox 기준) 게임패드를 지원한다.';
 class SettingsView {
   constructor() {
     this.sel = 0; this.t = 0; this.blockInput = 6;

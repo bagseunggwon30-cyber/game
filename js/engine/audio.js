@@ -137,6 +137,9 @@ const Sound = {
       case 'sprint': this.noise(0.12, 0.08, 1600, 0.8, 0, 'bandpass'); this.noise(0.05, 0.08, 400, 1, 0.06); break;
       case 'dive': this.tone(900, 0.22, 'sine', 0.05, -700); this.noise(0.2, 0.08, 3000, 1, 0, 'highpass'); break;
       case 'dodge': this.tone(1760, 0.18, 'sine', 0.06, -600); this.tone(2640, 0.25, 'sine', 0.035, -900, 0.05); this.noise(0.12, 0.06, 6000, 1, 0, 'highpass'); break;
+      case 'charge': this.tone(440, 0.18, 'triangle', 0.06, 440); this.tone(880, 0.12, 'sine', 0.04, 200, 0.08); break;
+      case 'heavy': this.noise(0.18, 0.2, 700, 0.8); this.tone(110, 0.22, 'sawtooth', 0.1, -50); break;
+      case 'parry': this.tone(1320, 0.08, 'square', 0.07); this.tone(1980, 0.3, 'sine', 0.07, -400, 0.03); this.noise(0.08, 0.15, 5000, 1); break;
       case 'static':
         this.noise(0.18 + Math.random() * 0.2, 0.12, 3000 + Math.random() * 3000, 0.6, 0, 'highpass');
         this.tone(2400 + Math.random() * 1200, 0.05, 'square', 0.03, -800, 0.05);
