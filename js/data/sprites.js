@@ -221,6 +221,23 @@ function buildEnemySprites() {
 
   // 플레이어 / NPC
   SPR.player = buildHumanSet(PAL.player);
+  // 구르기: 몸을 웅크린 공 모양을 90°씩 돌린 4프레임
+  {
+    const P = PAL.player;
+    const base = G.makeCanvas(16, 16), b = base.getContext('2d');
+    G.circle(b, 8, 9, 6, P.vest);
+    G.px(b, 3, 10, 11, 4, P.vestDark);
+    G.px(b, 3, 9, 11, 1, P.strip);
+    G.px(b, 2, 9, 4, 4, P.pants); G.px(b, 2, 12, 3, 2, P.shoes);
+    G.circle(b, 11, 5, 3, P.skin);
+    G.px(b, 9, 2, 5, 2, P.cap); G.px(b, 13, 3, 2, 1, P.capDark);
+    G.px(b, 12, 5, 1, 1, P.eye);
+    G.px(b, 6, 5, 3, 2, P.shirt);
+    const R = [0, 1, 2, 3].map((i) => G.sprite(16, 16, (c) => {
+      c.save(); c.translate(8, 8); c.rotate(i * Math.PI / 2); c.drawImage(base, -8, -8); c.restore();
+    }));
+    SPR.playerRoll = { R, L: R.map((f) => G.flipH(f)) };
+  }
   SPR.seo = buildHumanSet(PAL.seo, { cap: false, vest: false, glasses: true, hairLong: true, tie: '#7a1e2e' });
   SPR.min = buildHumanSet(PAL.min, { cap: false, ear: true });
   SPR.noeul = buildHumanSet(PAL.noeul, { cap: false, pony: true });

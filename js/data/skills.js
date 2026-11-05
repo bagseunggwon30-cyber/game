@@ -131,6 +131,7 @@ const STATUS = {
   hope: { name: '희망', col: '#f2d040', desc: '공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%.' },
   rage: { name: '분노', col: '#ff9a3a', desc: '중첩당 공격력 +8%.' },
   shield: { name: '부적', col: '#f2d040', desc: '다음 피해 1회 무효.' },
+  focus: { name: '집중', col: '#9ae8ff', desc: '아슬아슬하게 피한 직후. 다음 공격(내려찍기 포함)이 반드시 치명타.' },
   jam: { name: '신호 불량', col: '#62d6e8', debuff: true, desc: '통신 교란. 휴대폰(HUD)의 수치와 알림을 믿을 수 없다.' },
 };
 

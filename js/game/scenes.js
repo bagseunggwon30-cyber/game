@@ -234,6 +234,7 @@ class ResultScene {
       this.log.push(['알바 보수', won(pay) + (noDmg ? ' (무사고 +10%)' : '') + (perfect ? ' (수칙 완벽 +30%)' : ''), '#9ae89a']);
       if (run.ruleViol != null) this.log.push(['수칙 위반', `${run.ruleViol}회`, run.ruleViol ? COL.orange : COL.green]);
       if (run.cash) this.log.push(['현장에서 주운 돈', won(run.cash), '#9ae89a']);
+      if (run.dodges) this.log.push(['아슬아슬 회피', run.dodges + '회', '#9ae8ff']);
       if (r.toDebt) this.log.push(['빚 상환', '-' + won(r.toDebt), '#ff8a8a']);
       const tr = Math.round((6 + 3 * job.diff) * (deep ? 0.5 + 0.25 * deep.cleared + (full ? 0.25 : 0) : 1));
       addTrust(s, tr);

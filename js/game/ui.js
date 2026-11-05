@@ -277,6 +277,10 @@ class TextView {
   update() {
     this.t++;
     if (this.blockInput > 0) { this.blockInput--; return; }
+    if (this.maxTop > 0) {
+      if (Input.pressed('down')) { this.top = Math.min(this.maxTop, (this.top || 0) + 2); Sound.play('menu'); }
+      if (Input.pressed('up')) { this.top = Math.max(0, (this.top || 0) - 2); Sound.play('menu'); }
+    }
     if (Input.pressed('confirm') || Input.pressed('cancel')) {
       Sound.play('menu');
       Game.pop(this);
@@ -286,9 +290,15 @@ class TextView {
   draw(ctx) {
     const paper = this.opt.paper;
     const w = 304, x = Math.round((VW - w) / 2);
+    // 길면 작은 글씨로, 그래도 넘치면 ↑↓ 스크롤
     ctx.font = FONT_M;
-    const lines = wrapText(ctx, this.text, w - 28);
-    const h = Math.min(VH - 24, 52 + lines.length * 13);
+    let lines = wrapText(ctx, this.text, w - 28), LH = 13, small = false;
+    if (lines.length > 10) { ctx.font = FONT_S; lines = wrapText(ctx, this.text, w - 28); LH = 11; small = true; }
+    const cap = Math.floor((VH - 24 - 44) / LH);
+    this.maxTop = Math.max(0, lines.length - cap);
+    const top = Math.min(this.top || 0, this.maxTop);
+    const shown = lines.slice(top, top + cap);
+    const h = Math.min(VH - 24, 44 + Math.max(shown.length, 1) * LH + (small ? 4 : 8));
     const y = Math.round((VH - h) / 2) - 4;
     if (paper) {
       UI.card(ctx, x, y, w, h, { fill: '#ebe5d3', border: '#b8ae94' });
@@ -300,8 +310,12 @@ class TextView {
     Gfx.text(ctx, this.title, tx, y + 8, paper ? '#7a1e2e' : this.opt.titleCol || UI.C.text, { bold: true });
     if (paper) Gfx.text(ctx, '대외비', x + w - 12, y + 9, 'rgba(160,30,40,0.7)', { small: true, align: 'right' });
     UI.divider(ctx, x + 10, y + 24, w - 20, paper ? '#cfc6ae' : UI.C.line);
-    lines.forEach((ln, i) => Gfx.text(ctx, ln, x + 14, y + 31 + i * 13, paper ? '#2a2630' : '#d4d0e2'));
-    UI.hints(ctx, x + w, y + h + 4, [['Z', '닫기']], 'right');
+    shown.forEach((ln, i) => Gfx.text(ctx, ln, x + 14, y + 31 + i * LH, paper ? '#2a2630' : '#d4d0e2', { small }));
+    if (this.maxTop > 0) {
+      if (top > 0) Gfx.text(ctx, '▲', x + w - 12, y + 28, UI.C.mute, { small: true, align: 'right' });
+      if (top < this.maxTop) Gfx.text(ctx, '▼', x + w - 12, y + h - 12, UI.C.mute, { small: true, align: 'right' });
+    }
+    UI.hints(ctx, x + w, y + h + 4, this.maxTop > 0 ? [['↑↓', '스크롤'], ['Z', '닫기']] : [['Z', '닫기']], 'right');
   }
 }
 
@@ -457,7 +471,7 @@ function artifactDesc(id) {
 }
 
 // ── 환경 설정 화면 (←→ 값 변경) ──
-const PAD_CONTROLS_TEXT = '이동 · 메뉴 이동 — 왼쪽 스틱 / 십자키\n점프 · 확인 — A\n취소 · 대시 — B  (LT / RT도 대시)\n공격 — X\n뒤집기 (표면 ↔ 뒷면) — Y\n소모품 사용 — RB  ·  소모품 변경 — LB\n조사 · 상호작용 — ↑\n일시정지 — Start  ·  휴대폰 — Select\n\n표준 배치(Xbox 기준) 게임패드를 지원한다.';
+const PAD_CONTROLS_TEXT = '이동 · 메뉴 이동 — 왼쪽 스틱 / 십자키\n점프 · 확인 — A\n취소 · 구르기 — B  (LT / RT도 구르기)\n공격 — X  (공중에서 ↓+X 내려찍기)\n뒤집기 (표면 ↔ 뒷면) — Y\n소모품 사용 — RB  ·  소모품 변경 — LB\n조사 · 상호작용 — ↑\n일시정지 — Start  ·  휴대폰 — Select\n\n표준 배치(Xbox 기준) 게임패드를 지원한다.';
 class SettingsView {
   constructor() {
     this.sel = 0; this.t = 0; this.blockInput = 6;

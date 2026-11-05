@@ -122,6 +122,7 @@ const ICON_PIX = {
   st_halluc(c, G) { G.px(c, 0, 3, 9, 3, '#ff5a8a'); G.px(c, 1, 2, 7, 5, '#ff5a8a'); G.px(c, 3, 3, 3, 3, '#16141f'); G.px(c, 4, 4, 1, 1, '#ff5a8a'); },
   st_hope(c, G) { G.px(c, 3, 2, 3, 5, '#f2d040'); G.px(c, 2, 3, 5, 3, '#f2d040'); G.px(c, 4, 0, 1, 1, '#f2d040'); G.px(c, 4, 8, 1, 1, '#f2d040'); G.px(c, 0, 4, 1, 1, '#f2d040'); G.px(c, 8, 4, 1, 1, '#f2d040'); G.px(c, 4, 4, 1, 1, '#fff6c8'); },
   st_rage(c, G) { G.px(c, 2, 4, 5, 4, '#ff9a3a'); G.px(c, 3, 2, 3, 2, '#ff9a3a'); G.px(c, 4, 0, 1, 2, '#ff9a3a'); G.px(c, 6, 2, 1, 2, '#ff9a3a'); G.px(c, 4, 5, 1, 2, '#ffe0a0'); },
+  st_focus(c, G) { G.ring(c, 4, 4, 3.6, '#9ae8ff'); G.px(c, 4, 0, 1, 9, '#9ae8ff'); G.px(c, 0, 4, 9, 1, '#9ae8ff'); G.px(c, 4, 4, 1, 1, '#ffffff'); },
   st_jam(c, G) { G.px(c, 4, 2, 1, 7, '#62d6e8'); G.px(c, 2, 0, 1, 3, '#62d6e8'); G.px(c, 6, 0, 1, 3, '#62d6e8'); G.px(c, 3, 1, 3, 1, '#62d6e8'); G.line(c, 0, 8, 8, 0, '#ff3a5a'); },
   st_shield(c, G) { G.px(c, 2, 0, 5, 9, '#f2d040'); G.px(c, 3, 1, 3, 1, '#c41e3a'); G.px(c, 4, 2, 1, 5, '#c41e3a'); G.px(c, 3, 4, 3, 1, '#c41e3a'); },
 };

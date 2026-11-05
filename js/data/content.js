@@ -165,7 +165,7 @@ const RARITY = [
 ];
 const ABILITIES = {
   doubleJump: { name: '이단 점프', desc: '공중에서 한 번 더 점프할 수 있다.' },
-  dash: { name: '대시', desc: 'Shift 또는 방향키 두 번으로 순간 이동하듯 돌진한다.' },
+  dash: { name: '공중 대시', desc: '공중에서 Shift로 한 번 돌진할 수 있고, 구르기를 더 자주 쓸 수 있다.' },
   backSight: { name: '이면 시야', desc: '표면에서도 뒷면의 존재가 희미하게 보인다.' },
   quickflip: { name: '빠른 전환', desc: '뒤집기 대기 시간이 줄어든다.' },
   sanLeech: { name: '대답', desc: '뒷면의 존재를 쓰러뜨리면 정신력을 회복한다.' },

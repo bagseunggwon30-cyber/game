@@ -134,6 +134,14 @@ class MissionScene {
   // 표면 배경음: 근무 수칙 알바는 어딘가 어긋난 매장 음악
   frontAmb() { return this.rule ? 'muzak' : 'front'; }
   // 화면 안에서 같은 면에 보이는 존재를 도감에 '목격'으로 남긴다
+  movementHints() {
+    const p = this.player, f = this.s.flags;
+    if (this.hintT > 0 || this.locked || this.story && this.story.tutorial && this.time < 600) return;
+    const near = (dx, below) => this.enemies.some((e) => !e.dead && e.layer === p.layer && e.dmg > 0 && Math.abs(e.cx - p.cx) < dx && (!below || e.cy > p.cy + 20));
+    if (!f.hintRollShown && near(90)) { f.hintRollShown = true; this.showHint('Shift(패드 B): 구르기 — 구르는 동안 무적. 방향키 없이 누르면 백스텝, 구른 직후 X는 돌진 베기.'); }
+    else if (!f.hintDiveShown && f.hintRollShown && !p.onGround && near(50, true)) { f.hintDiveShown = true; this.showHint('공중에서 ↓+X: 내려찍기 — 높이 떨어질수록 세게, 주변을 함께 친다.'); }
+    else if (!f.hintSprintShown && f.hintRollShown && p.sprinting && this.time > 900) { f.hintSprintShown = true; this.showHint('한 방향으로 계속 달리면 질주. 질주 중 X는 돌진 베기, 점프하면 더 멀리 난다.'); }
+  }
   codexLook() {
     const p = this.player, cam = this.cam;
     for (const e of this.enemies) {
@@ -174,7 +182,7 @@ class MissionScene {
     if (isBoss) k *= 1 + m.bossDmg;
     return k;
   }
-  critChance() { return this.D.crit + (this.m.conviction && this.player.st.has('hope') ? 0.12 : 0); }
+  critChance() { if (this.player.st.has('focus')) return 1; return this.D.crit + (this.m.conviction && this.player.st.has('hope') ? 0.12 : 0); }
   addHope(sec, why) {
     const p = this.player;
     const frames = Math.round(sec * 60 * (1 + this.m.hopeDur) * (this.s.weekMod === 'dread' ? 1.3 : 1));
@@ -340,7 +348,7 @@ class MissionScene {
     if (this.ruleHas('stopAt3') && !E.three.done && R.clock >= 60) { E.three.done = true; E.three.t = 300; E.three.hit = false; Sound.play('chime'); Sound.play('heart'); }
     if (E.three.t > 0) {
       E.three.t--;
-      const moving = Math.abs(p.vx) > 0.4 || !p.onGround || p.atkT > 0 || p.dashT > 0;
+      const moving = p.moving;
       if (300 - E.three.t > 40 && moving && !E.three.hit) { E.three.hit = true; this.ruleViolate('stopAt3', '3시 정각에 움직였다'); }
     }
     // 뒷면 30초 제한
@@ -420,6 +428,7 @@ class MissionScene {
     if (p.st.has('hope')) { const h = p.st.m.hope; add('hope', `희망 ${sec('hope')}`, h.t / h.max); }
     if (p.st.has('rage')) add('rage', `분노×${p.st.stacks('rage')}`, p.st.left('rage') / 300);
     if (p.shield > 0) add('shield', `부적×${p.shield}`, null);
+    if (p.st.has('focus')) add('focus', '집중 — 다음 공격 치명타', p.st.left('focus') / 150);
     return out;
   }
 
@@ -894,11 +903,15 @@ class MissionScene {
       if (this.deathT === 0) this.finish('fail');
     }
     p.update();
-    for (const e of this.enemies) if (!e.dead) e.update();
+    // 아슬아슬 회피 직후: 적과 탄은 한 프레임 걸러 움직인다 (반속)
+    if (this.slowT > 0) this.slowT--;
+    this.slowSkip = this.slowT > 0 && this.time % 2 === 1;
+    if (!this.slowSkip) for (const e of this.enemies) if (!e.dead) e.update();
     this.enemies = this.enemies.filter((e) => !e.dead);
-    if (this.boss) this.boss.update();
+    if (this.boss && !this.slowSkip) this.boss.update();
+    if (this.shockRing && --this.shockRing.t <= 0) this.shockRing = null;
     if (this.finaleRoute) this.updateFinaleAlly();
-    if (this.time % 20 === 0) this.codexLook();
+    if (this.time % 20 === 0) { this.codexLook(); this.movementHints(); }
     this.updateProjectiles();
     this.updatePickups();
     this.updateInteracts();
@@ -977,6 +990,7 @@ class MissionScene {
   updateProjectiles() {
     const p = this.player;
     for (const pr of this.projectiles) {
+      if (this.slowSkip && pr.from !== 'player') continue;
       pr.x += pr.vx; pr.y += pr.vy;
       if (pr.grav) pr.vy += pr.grav;
       pr.life--;
@@ -1005,7 +1019,10 @@ class MissionScene {
           if (!pr.pierce) pr.life = 0;
         }
       } else if (pr.layer === p.layer && !p.dead) {
-        if (Math.hypot(pr.x - p.cx, pr.y - p.cy) < pr.r + 7) { if (p.hurt(pr.dmg, pr.san || 0, pr.x)) this.applyHitEffect(pr.eff); pr.life = 0; }
+        if (Math.hypot(pr.x - p.cx, pr.y - p.cy) < pr.r + 7) {
+          if (p.rollInv > 0) p.perfectDodge('attack');      // 구르면 탄을 뚫고 지나간다
+          else { if (p.hurt(pr.dmg, pr.san || 0, pr.x, 'attack')) this.applyHitEffect(pr.eff); pr.life = 0; }
+        }
       }
     }
     this.projectiles = this.projectiles.filter((pr) => pr.life > 0);
@@ -1141,9 +1158,11 @@ class MissionScene {
   }
   updateCamera() {
     const p = this.player;
-    const tx = clamp(p.cx - VW / 2 + p.facing * 30, 0, this.lvl.W * TS - VW);
-    const ty = clamp(p.cy - VH / 2 - 10, 0, this.lvl.H * TS - VH);
-    this.cam.x = lerp(this.cam.x, tx, 0.1);
+    const fast = p.sprinting || p.rollT > 0 || p.dashT > 0;
+    this.lookX = lerp(this.lookX || 0, p.facing * (fast ? 56 : 30), fast ? 0.06 : 0.04);
+    const tx = clamp(p.cx - VW / 2 + this.lookX, 0, this.lvl.W * TS - VW);
+    const ty = clamp(p.cy - VH / 2 - 10 + (p.dive > 0 ? 24 : 0), 0, this.lvl.H * TS - VH);
+    this.cam.x = lerp(this.cam.x, tx, fast ? 0.14 : 0.1);
     this.cam.y = lerp(this.cam.y, ty, 0.1);
     if (this.arenaActive) {
       const a = this.gen.arena;
@@ -1219,6 +1238,14 @@ class MissionScene {
     }
     // 플레이어
     if (!p.dead) p.draw(ctx, cam);
+    if (this.shockRing && this.shockRing.layer === L) {
+      const r = this.shockRing, k = 1 - r.t / 14;
+      ctx.globalAlpha = 1 - k;
+      ctx.fillStyle = L === 'back' ? '#ff8ab0' : '#f4f0e6';
+      const rad = 6 + k * 34;
+      for (let a = Math.PI; a <= Math.PI * 2 + 0.01; a += 0.18) ctx.fillRect(Math.round(r.x + Math.cos(a) * rad - cam.x), Math.round(r.y + Math.sin(a) * rad * 0.45 - cam.y), 2, 1);
+      ctx.globalAlpha = 1;
+    }
     // 투사체
     for (const pr of this.projectiles) {
       if (pr.layer !== 'any' && pr.layer !== L) continue;
@@ -1472,6 +1499,13 @@ class MissionScene {
 
   drawEffects(ctx, L) {
     const p = this.player;
+    // 아슬아슬 회피: 느려진 시간
+    if (this.slowT > 0) {
+      const a = Math.min(1, this.slowT / 12);
+      ctx.fillStyle = `rgba(120,220,255,${0.08 * a})`; ctx.fillRect(0, 0, VW, VH);
+      ctx.fillStyle = `rgba(154,232,255,${0.55 * a})`;
+      ctx.fillRect(0, 0, VW, 2); ctx.fillRect(0, VH - 2, VW, 2); ctx.fillRect(0, 0, 2, VH); ctx.fillRect(VW - 2, 0, 2, VH);
+    }
     if (L === 'back') {
       ctx.globalAlpha = 1;
       if (Settings.calm) { ctx.globalAlpha = 0.5; ctx.drawImage(this.noise, -20, -20, VW + 40, VH + 40); ctx.globalAlpha = 1; }
@@ -1809,5 +1843,5 @@ class DeepRest {
 }
 function i18Depth(n) { return `총 ${n}층`; }
 
-const STATUS_HELP_TEXT = '공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)\n\n신호 불량(통신 교란): 알림 떼·전파 오염 구역·일부 보스가 일으킨다.\nHUD 수치·상태 아이콘·목표·알림이 거짓이 된다. 표면으로 나가면 회복.\n전파 차단 호일, 차폐 폰케이스, 의심 갈래 "간파"로 대응.';
-const CONTROLS_TEXT = '← →  이동        Z / Space  점프 (↓ 길게: 발판 아래로)\nX  공격            C  뒤집기 (표면 ↔ 뒷면)\n↑  조사 / 상호작용   V  소모품 사용   Q 또는 ↓+V  소모품 변경\nShift  대시 (능력 획득 시, 방향키 두 번도 가능)\nEsc  일시정지\n\n메뉴: 방향키 이동, Z/Enter 확인, X/Esc 취소\n허브: ↑ 건물 들어가기, V 휴대폰';
+const STATUS_HELP_TEXT = '집중: 구르기 무적 중에 공격이 닿으면(아슬아슬 회피) 잠깐 시간이 느려지고, 다음 공격이 반드시 치명타.\n공포: 뒷면에 있으면 쌓인다(적이 가까울수록 빨리). 표면에서 가라앉는다.\n· 겁먹음(50+): 정신력 소모 +25%, 이동 -10%\n· 패닉(100): 5초간 몸이 제멋대로 움직이고 뒤집기 불가, 정신력 소모 2배\n침식: 정신력이 중첩당 초당 2 감소 (최대 3중첩)\n둔화: 이동 속도 -35%\n환각: 정신력 30% 미만, 받는 피해 +25%\n\n희망: 공포 증가 절반, 정신력 초당 +1.5, 공격력 +10%\n  (단서·앵커·아티팩트·목표 달성·캔커피로 얻는다)\n분노: 중첩당 공격력 +8% (분노 갈래 스킬)\n\n신호 불량(통신 교란): 알림 떼·전파 오염 구역·일부 보스가 일으킨다.\nHUD 수치·상태 아이콘·목표·알림이 거짓이 된다. 표면으로 나가면 회복.\n전파 차단 호일, 차폐 폰케이스, 의심 갈래 "간파"로 대응.';
+const CONTROLS_TEXT = '← →  이동 (계속 누르면 질주)\nZ / Space  점프   ·   ↓ 길게  발판 아래로\nX  공격   ·   C  뒤집기 (표면 ↔ 뒷면)\nShift  구르기 (무적 · 방향키 두 번도 가능)\n방향키 없이 Shift  백스텝 (보는 방향 유지)\n구르기 · 질주 중 X  돌진 베기\n공중에서 ↓+X  내려찍기\n↑  조사 · 상호작용   ·   Esc  일시정지\nV  소모품 사용   ·   Q 또는 ↓+V  소모품 변경\n메뉴: Z 확인 · X 취소   ·   허브: ↑ 들어가기 · V 휴대폰';

@@ -1,6 +1,18 @@
 'use strict';
 // ───────────────────────── 엔티티: 플레이어 / 적 / 투사체 ─────────────────────────
 
+// 질주: 같은 방향을 이만큼(프레임) 누르면 가속, 배율
+const SPRINT_AT = 22;
+const SPRINT_MUL = 1.42;
+// 잔상용 단색 실루엣 (색마다 캐시)
+const _ghostCache = {};
+function ghostOf(img, col) {
+  const m = _ghostCache[col] || (_ghostCache[col] = new WeakMap());
+  let g = m.get(img);
+  if (!g) { g = Gfx.tint(img, col); m.set(img, g); }
+  return g;
+}
+
 class Player {
   constructor(x, y, sc) {
     this.sc = sc;
@@ -25,7 +37,17 @@ class Player {
     this.downHold = 0;
     this.st = new StatusSet();     // 버프 / 디버프
     this.jitT = 40; this.jitDir = 0; this.jitLeft = 0;
+    // 기동: 구르기 / 백스텝 / 질주 / 돌진 베기 / 내려찍기
+    this.rollT = 0; this.rollLen = 1; this.rollDir = 1; this.rollBack = false; this.rollCd = 0; this.rollInv = 0; this.rollDodged = false;
+    this.postRoll = 0; this.dodgeCd = 0;
+    this.sprintT = 0; this.sprinting = false; this.lastMx = 0;
+    this.lungeT = 0; this.atkBonus = 1;
+    this.dive = 0; this.diveCd = 0; this.diveLag = 0; this.diveY = 0;
+    this.airDashUsed = false;
+    this.ghosts = [];
   }
+  get rolling() { return this.rollT > 0; }
+  get moving() { return Math.abs(this.vx) > 0.4 || !this.onGround || this.atkT > 0 || this.dashT > 0 || this.rollT > 0 || this.dive > 0; }
   get cx() { return this.x + this.w / 2; }
   get cy() { return this.y + this.h / 2; }
 
@@ -36,6 +58,11 @@ class Player {
     if (this.atkCd > 0) this.atkCd--;
     if (this.flipCd > 0) this.flipCd--;
     if (this.dashCd > 0) this.dashCd--;
+    if (this.rollCd > 0) this.rollCd--;
+    if (this.rollInv > 0) this.rollInv--;
+    if (this.postRoll > 0) this.postRoll--;
+    if (this.dodgeCd > 0) this.dodgeCd--;
+    if (this.diveCd > 0) this.diveCd--;
     if (this.dropT > 0) this.dropT--;
     if (this.hurtT > 0) this.hurtT--;
     if (this.frozen > 0) { this.frozen--; this.vx *= 0.8; }
@@ -49,38 +76,83 @@ class Player {
       else if (--this.jitT <= 0) { this.jitDir = Math.random() < 0.5 ? -1 : 1; this.jitLeft = rndi(10, 18); this.jitT = rndi(26, 50); }
     }
 
-    // 대시
-    if (ctrl && D.ab.dash && this.dashCd <= 0 && (Input.pressed('dash') || Input.tapDash)) {
-      const dir = Input.tapDash || (mx || this.facing);
-      this.facing = dir;
-      this.dashT = 10; this.dashCd = 42; this.inv = Math.max(this.inv, 10);
-      this.vy = 0;
-      Sound.play('swing');
+    // 구르기 · 백스텝 · 공중 대시 (Shift / 방향키 두 번 / 패드 B)
+    const wantDash = ctrl && (Input.pressed('dash') || Input.tapDash);
+    if (wantDash && this.rollT <= 0 && this.dive <= 0 && this.dashT <= 0 && this.hurtT <= 8) {
+      const atkCancel = this.atkT <= 0 || 1 - this.atkT / this.atkTotal > 0.5;   // 공격 후딜은 구르기로 끊는다
+      if (atkCancel && (this.onGround || this.coyote > 0) && this.rollCd <= 0) {
+        const dir = Input.tapDash || mx;
+        if (dir === 0) this.startRoll(-this.facing, true);
+        else this.startRoll(dir, false);
+      } else if (atkCancel && !this.onGround && D.ab.dash && !this.airDashUsed) {
+        const dir = Input.tapDash || mx || this.facing;
+        this.facing = dir; this.atkT = 0;
+        this.dashT = 10; this.airDashUsed = true; this.rollInv = Math.max(this.rollInv, 10); this.rollDodged = false;
+        this.vy = 0; this.sprinting = true;
+        Sound.play('roll');
+      }
     }
-    if (this.dashT > 0) {
+    if (this.diveLag > 0) { this.diveLag--; this.vx *= 0.6; }
+    else if (this.dive > 0) {
+      // 내려찍기: 곧장 떨어진다 (좌우는 살짝만)
+      this.dive++;
+      this.vx = approach(this.vx, mx * 0.8, 0.3);
+      this.vy = Math.min(9, this.vy + 0.9);
+    } else if (this.rollT > 0) {
+      this.rollT--;
+      const k = this.rollT / this.rollLen;
+      const sp = this.rollBack ? 3.7 * (0.35 + 0.65 * k) : (2.7 + 2.5 * k);
+      this.vx = this.rollDir * sp * sc.speedMul();
+      if (this.rollT === 0) this.postRoll = 12;
+      if (!this.rollBack && sc.time % 3 === 0 && this.onGround) sc.particles.push({ x: this.cx - this.rollDir * 4, y: this.y + this.h - 1, vx: -this.rollDir * rnd(0.3, 1), vy: rnd(-0.6, -0.1), life: 14, col: '#a8a4b8', size: 1 });
+    } else if (this.dashT > 0) {
       this.dashT--;
       this.vx = this.facing * 6.2;
       this.vy = 0;
       if (sc.time % 2 === 0) sc.particles.push({ x: this.cx, y: this.cy + rnd(-8, 8), vx: -this.facing * 0.5, vy: 0, life: 14, col: this.layer === 'back' ? '#ff5a8a' : '#f2c230', size: 2 });
+    } else if (this.lungeT > 0) {
+      // 돌진 베기
+      this.lungeT--;
+      this.vx = this.facing * (2.2 + this.lungeT * 0.35);
     } else {
+      // 질주: 같은 방향을 계속 누르면 가속한다
+      if (this.onGround) {
+        if (mx !== 0 && mx === this.lastMx && this.atkT <= 0) this.sprintT++;
+        else if (mx !== this.lastMx || mx === 0) this.sprintT = 0;
+        const was = this.sprinting;
+        this.sprinting = this.sprintT >= SPRINT_AT;
+        if (this.sprinting && !was) {
+          Sound.play('sprint');
+          for (let i = 0; i < 6; i++) sc.particles.push({ x: this.cx - mx * 5, y: this.y + this.h - 1, vx: -mx * rnd(0.5, 1.8), vy: rnd(-1, -0.2), life: 16, col: '#a8a4b8', size: rndi(1, 2) });
+        }
+      } else {
+        // 공중: 질주 중이 아니었다면 가속은 다시 땅에서부터 (짧은 발판 연속 점프에선 질주가 붙지 않는다)
+        if (!this.sprinting) this.sprintT = 0;
+        else if (mx !== 0 && mx !== sign(this.vx)) this.sprinting = false;
+      }
+      this.lastMx = mx;
       const atkSlow = this.atkT > 0 && this.onGround ? 0.45 : 1;
-      const target = mx * D.speed * atkSlow * sc.speedMul();
-      const acc = this.onGround ? 0.4 : 0.28;
+      const target = mx * D.speed * (this.sprinting ? SPRINT_MUL : 1) * atkSlow * sc.speedMul();
+      const turning = mx !== 0 && sign(mx) !== sign(this.vx) && Math.abs(this.vx) > 0.3;
+      const acc = this.onGround ? (turning ? 0.9 : 0.5) : 0.3;
       this.vx = approach(this.vx, target, acc);
       if (mx !== 0 && this.atkT <= 0) this.facing = mx;
+      if (this.sprinting && this.onGround && mx !== 0 && sc.time % 6 === 0) sc.particles.push({ x: this.cx - mx * 4, y: this.y + this.h - 1, vx: -mx * 0.6, vy: -0.3, life: 10, col: '#8a86a0', size: 1 });
     }
 
     // 점프
-    if (this.onGround) { this.coyote = 6; this.airJumps = D.ab.doubleJump ? 1 : 0; } else if (this.coyote > 0) this.coyote--;
+    if (this.onGround) { this.coyote = 6; this.airJumps = D.ab.doubleJump ? 1 : 0; this.airDashUsed = false; } else if (this.coyote > 0) this.coyote--;
     if (ctrl && Input.pressed('jump')) this.jumpBuf = 7;
     if (this.jumpBuf > 0) this.jumpBuf--;
     if (this.jumpBuf > 0 && ctrl) {
       if (Input.down('down') && this.onGround && this.standingOnPlatform()) {
         this.dropT = 12; this.jumpBuf = 0; this.y += 1;
-      } else if (this.coyote > 0) {
+      } else if (this.coyote > 0 && this.dive <= 0 && this.diveLag <= 0 && (this.rollT <= 0 || this.rollLen - this.rollT >= 5)) {
+        // 구르기 도중 점프하면 구르기를 끊고 질주 속도를 그대로 가져간다
+        if (this.rollT > 0) { this.rollT = 0; this.sprinting = !this.rollBack; this.sprintT = SPRINT_AT; }
         this.vy = -D.jumpV; this.coyote = 0; this.jumpBuf = 0; this.onGround = false;
         Sound.play('jump');
-      } else if (this.airJumps > 0 && this.dashT <= 0) {
+      } else if (this.airJumps > 0 && this.dashT <= 0 && this.dive <= 0) {
         this.vy = -D.jumpV * 0.92; this.airJumps--; this.jumpBuf = 0;
         Sound.play('djump');
         for (let i = 0; i < 6; i++) sc.particles.push({ x: this.cx + rnd(-5, 5), y: this.y + this.h, vx: rnd(-1, 1), vy: rnd(0.5, 1.5), life: 18, col: '#c8c4d8', size: 1 });
@@ -92,11 +164,12 @@ class Player {
       if (++this.downHold > 9) { this.dropT = 12; this.y += 1; this.downHold = 0; }
     } else this.downHold = 0;
 
-    if (this.dashT <= 0) {
+    if (this.dashT <= 0 && this.dive <= 0) {
       this.vy = Math.min(MAXFALL, this.vy + GRAV);
     }
     const wasGround = this.onGround;
     moveBody(this, lvl, this.layer);
+    if (this.dive > 0 && this.onGround) this.diveImpact();
     if (this.onGround && !wasGround && this.landT <= 0) { Sound.play('land'); this.landT = 8; }
     if (this.landT > 0) this.landT--;
 
@@ -109,7 +182,7 @@ class Player {
 
     // 가시
     if (boxHits(lvl, this.layer, this.x + 2, this.y + 4, this.w - 4, this.h - 4, T_SPIKE)) {
-      this.hurt(10, 4, this.cx - this.facing * 10);
+      this.hurt(10, 4, this.cx - this.facing * 10, 'trap');
       if (this.inv > 0) this.vy = -4;
     }
 
@@ -117,8 +190,12 @@ class Player {
     if (this.y > lvl.H * TS + 20) sc.onPitFall();
 
     // 공격
-    if (ctrl && Input.pressed('attack') && this.atkCd <= 0 && this.dashT <= 0) this.startAttack();
+    if (ctrl && Input.pressed('attack') && this.dive <= 0 && this.diveLag <= 0) {
+      if (!this.onGround && Input.down('down') && this.diveCd <= 0 && this.dashT <= 0) this.startDive();
+      else if (this.atkCd <= 0 && this.dashT <= 0) this.startAttack();
+    }
     if (this.atkT > 0) this.updateAttack();
+    if (this.dive > 0) this.updateDive();
 
     // 전환 / 아이템 / 상호작용
     if (ctrl && Input.pressed('flip')) sc.tryFlip();
@@ -126,16 +203,101 @@ class Player {
     if (ctrl && Input.pressed('cycle')) sc.cycleItem();
     if (ctrl && Input.pressed('interact')) sc.tryInteract();
 
+    // 잔상
+    const fast = this.rollT > 0 || this.dashT > 0 || this.dive > 0 || this.lungeT > 0 || (this.sprinting && Math.abs(this.vx) > D.speed * 1.1);
+    if (fast && sc.time % 3 === 0) this.ghosts.push({ x: this.x, y: this.y, facing: this.facing, frame: this.frame, roll: this.rollT > 0 && !this.rollBack ? this.rollFrame() : -1, life: 12, col: this.layer === 'back' ? '#ff5a8a' : this.rollInv > 0 ? '#9ae8ff' : '#f2c230' });
+    for (const g of this.ghosts) g.life--;
+    this.ghosts = this.ghosts.filter((g) => g.life > 0);
+
     // 애니메이션
     this.anim++;
     if (this.hurtT > 10) this.frame = 11;
+    else if (this.dive > 0 || this.diveLag > 0) this.frame = this.diveLag > 0 ? 10 : 7;
+    else if (this.rollT > 0 && this.rollBack) this.frame = 6;
     else if (this.atkT > 0) {
       const w = sc.D.weapon;
       const p = 1 - this.atkT / this.atkTotal;
       this.frame = w.ranged ? 9 : p < 0.25 ? 8 : p < 0.6 ? 9 : 10;
     } else if (!this.onGround) this.frame = this.vy < 0 ? 6 : 7;
-    else if (Math.abs(this.vx) > 0.3) this.frame = 2 + Math.floor(this.anim / 6) % 4;
+    else if (Math.abs(this.vx) > 0.3) this.frame = 2 + Math.floor(this.anim / (this.sprinting ? 4 : 6)) % 4;
     else this.frame = Math.floor(this.anim / 30) % 2;
+  }
+
+  rollFrame() { return Math.floor((this.rollLen - this.rollT) / 3) % 4; }
+  startRoll(dir, back) {
+    const sc = this.sc, D = sc.D;
+    this.atkT = 0; this.lungeT = 0;
+    this.rollBack = back; this.rollDir = dir;
+    this.rollLen = this.rollT = back ? 11 : 18;
+    if (!back) this.facing = dir;
+    this.rollInv = back ? 9 : 14; this.rollDodged = false;
+    this.rollCd = this.rollT + (D.ab.dash ? 6 : 12);
+    if (back) this.vy = -1.6;
+    this.sprintT = back ? 0 : SPRINT_AT; this.sprinting = false;
+    Sound.play(back ? 'step' : 'roll');
+    for (let i = 0; i < 5; i++) sc.particles.push({ x: this.cx, y: this.y + this.h - 1, vx: -dir * rnd(0.4, 1.6), vy: rnd(-0.8, -0.1), life: 16, col: '#a8a4b8', size: rndi(1, 2) });
+    if (!sc.s.flags.hintRoll) sc.s.flags.hintRoll = true;
+  }
+  startDive() {
+    const sc = this.sc;
+    this.dive = 1; this.diveY = this.y; this.atkT = 0; this.lungeT = 0; this.dashT = 0; this.rollT = 0;
+    this.vy = 3.5; this.vx *= 0.3; this.sprinting = false;
+    this.rollInv = Math.max(this.rollInv, 6); this.rollDodged = true;
+    this.hitSet.clear();
+    Sound.play('dive');
+    if (!sc.s.flags.hintDive) sc.s.flags.hintDive = true;
+  }
+  updateDive() {
+    // 떨어지는 동안 몸으로 부딪힌 존재에게도 피해
+    const sc = this.sc, w = sc.D.weapon;
+    const box = { x: this.x - 2, y: this.y + this.h - 6, w: this.w + 4, h: 10 };
+    for (const e of sc.enemies) {
+      if (e.dead || e.layer !== this.layer || this.hitSet.has(e)) continue;
+      if (overlap(box, e)) { this.hitSet.add(e); e.hurt(w.dmg * sc.dmgMul(false) * 0.8, sign(e.cx - this.cx) || 1, 10, false); }
+    }
+    if (this.dive > 150) { this.dive = 0; this.diveCd = 20; }   // 너무 오래 떨어지면 풀린다
+  }
+  diveImpact() {
+    const sc = this.sc, w = sc.D.weapon;
+    const fall = Math.max(0, this.y - this.diveY);
+    const k = 1.2 + Math.min(0.8, fall / 160);   // 높이 떨어질수록 세다
+    const R = 34, fx = this.cx, fy = this.y + this.h;
+    const crit = this.st.has('focus');
+    const dmg = w.dmg * sc.dmgMul(false) * k * (crit ? sc.D.critMul : 1);
+    for (const e of sc.enemies) {
+      if (e.dead || e.layer !== this.layer) continue;
+      if (Math.abs(e.cx - fx) < R && Math.abs(e.y + e.h - fy) < 30) e.hurt(dmg, sign(e.cx - fx) || 1, 30, crit);
+    }
+    if (sc.boss && !sc.boss.dead && this.layer === 'back') {
+      const b = sc.boss.hitbox();
+      if (fx > b.x - R && fx < b.x + b.w + R && fy > b.y - 10 && fy < b.y + b.h + 30) sc.boss.hurt(w.dmg * sc.dmgMul(true) * k * (crit ? sc.D.critMul : 1), sign(sc.boss.cx - fx) || 1, crit);
+    }
+    if (crit) this.st.remove('focus');
+    this.dive = 0; this.diveLag = 8; this.diveCd = 24; this.vx = 0;
+    Sound.play('slam');
+    Gfx.shake(3 + Math.round(k), 10);
+    for (let i = 0; i < 18; i++) {
+      const d = i % 2 ? 1 : -1;
+      sc.particles.push({ x: fx + d * rnd(0, 6), y: fy - 1, vx: d * rnd(0.8, 3.2), vy: rnd(-2.4, -0.4), life: rndi(14, 24), col: this.layer === 'back' ? pickR(['#ff5a8a', '#5a2030']) : pickR(['#a8a4b8', '#f2c230']), size: rndi(1, 3), g: 0.12 });
+    }
+    sc.shockRing = { x: fx, y: fy, t: 14, layer: this.layer };
+  }
+  // 무적 시간 안에 공격이 닿았다 = 아슬아슬하게 피했다
+  perfectDodge(kind) {
+    const sc = this.sc;
+    if (kind === 'body') return;               // 그냥 몸을 뚫고 지나간 건 보상 없음 (무적만)
+    if (this.rollDodged) return;
+    this.rollDodged = true;
+    if (this.dodgeCd > 0) return;
+    this.dodgeCd = 60;
+    sc.run.dodges = (sc.run.dodges || 0) + 1;
+    this.st.add('focus', 150);
+    sc.addFear(-8);
+    sc.floatText(this.cx, this.y - 12, '아슬아슬!', '#9ae8ff');
+    Sound.play('dodge');
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; sc.particles.push({ x: this.cx, y: this.cy, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2, life: 16, col: '#9ae8ff', size: 1 }); }
+    sc.slowT = Math.max(sc.slowT || 0, 36);   // 진짜 공격을 피하면 잠깐 세상이 느려진다
+    if (!sc.s.flags.hintDodge) { sc.s.flags.hintDodge = true; sc.showHint('아슬아슬 회피! 잠깐 시간이 느려지고, 다음 공격은 반드시 치명타(집중).'); }
   }
 
   standingOnPlatform() {
@@ -152,6 +314,14 @@ class Player {
 
   startAttack() {
     const sc = this.sc, w = sc.D.weapon;
+    // 구르기 중·직후, 또는 질주 중이면 돌진 베기
+    const lunge = !w.ranged && (this.rollT > 0 || this.postRoll > 0 || (this.sprinting && Math.abs(this.vx) > sc.D.speed * 1.1));
+    if (this.rollT > 0) { this.rollT = 0; }
+    this.atkBonus = lunge ? 1.4 : 1;
+    this.lungeT = lunge ? 9 : 0;
+    this.lunging = lunge;
+    this.sprinting = false; this.sprintT = 0;
+    if (lunge) this.postRoll = 0;
     this.atkTotal = Math.max(8, Math.round(w.cd * sc.D.atkCdMul * sc.atkSpdMul()));
     this.atkT = this.atkTotal;
     this.atkCd = this.atkTotal + 2;
@@ -173,7 +343,7 @@ class Player {
 
   attackBox() {
     const w = this.sc.D.weapon;
-    const reach = w.reach;
+    const reach = w.reach + (this.lunging ? 8 : 0);
     return { x: this.facing > 0 ? this.x + this.w - 2 : this.x - reach + 2, y: this.y - 2, w: reach, h: this.h };
   }
 
@@ -185,21 +355,25 @@ class Player {
     if (p > 0.22 && p < 0.62) {
       const box = this.attackBox();
       const crit = Math.random() < sc.critChance();
-      const cm = crit ? sc.D.critMul : 1;
+      const cm = (crit ? sc.D.critMul : 1) * this.atkBonus;
+      let hit = false;
       for (const e of sc.enemies) {
         if (e.dead || e.layer !== this.layer || this.hitSet.has(e)) continue;
-        if (overlap(box, e)) { this.hitSet.add(e); e.hurt(w.dmg * sc.dmgMul(false) * cm, this.facing, w.stun || 0, crit); }
+        if (overlap(box, e)) { this.hitSet.add(e); hit = true; e.hurt(w.dmg * sc.dmgMul(false) * cm, this.facing, (w.stun || 0) + (this.lunging ? 12 : 0), crit); }
       }
       if (sc.boss && !sc.boss.dead && this.layer === 'back' && !this.hitSet.has(sc.boss) && overlap(box, sc.boss.hitbox())) {
-        this.hitSet.add(sc.boss);
+        this.hitSet.add(sc.boss); hit = true;
         sc.boss.hurt(w.dmg * sc.dmgMul(true) * cm, this.facing, crit);
       }
+      if (hit && this.st.has('focus')) this.st.remove('focus');
     }
   }
 
-  hurt(dmg, san, fromX) {
+  hurt(dmg, san, fromX, kind) {
     const sc = this.sc;
-    if (this.inv > 0 || this.dead || sc.locked) return false;
+    if (this.dead || sc.locked) return false;
+    if (this.rollInv > 0 && kind !== 'trap') { this.perfectDodge(kind); return false; }
+    if (this.inv > 0) return false;
     if (this.shield > 0) {
       this.shield--;
       this.inv = 50;
@@ -214,7 +388,8 @@ class Player {
     this.inv = 60; this.hurtT = 20;
     const dir = this.cx < fromX ? -1 : 1;
     this.vx = dir * 2.6; this.vy = -2.8;
-    this.dashT = 0;
+    this.dashT = 0; this.rollT = 0; this.lungeT = 0; this.sprinting = false; this.sprintT = 0;
+    if (this.dive > 0) { this.dive = 0; this.diveCd = 20; }
     sc.run.damage += dmg;
     Gfx.shake(3, 10);
     Sound.play('hurt');
@@ -225,8 +400,22 @@ class Player {
   }
 
   draw(ctx, cam) {
-    if (this.inv > 0 && this.hurtT <= 0 && Math.floor(this.inv / 3) % 2 === 0 && this.dashT <= 0) return;
     const set = SPR.player;
+    // 잔상
+    for (const g of this.ghosts) {
+      const img = g.roll >= 0 ? (g.facing > 0 ? SPR.playerRoll.R : SPR.playerRoll.L)[g.roll] : (g.facing > 0 ? set.R : set.L)[g.frame];
+      ctx.globalAlpha = (g.life / 12) * 0.38;
+      ctx.drawImage(ghostOf(img, g.col), Math.round(g.x - 3 - cam.x), Math.round(g.y + (g.roll >= 0 ? 8 : -2) - cam.y));
+    }
+    ctx.globalAlpha = 1;
+    if (this.inv > 0 && this.hurtT <= 0 && Math.floor(this.inv / 3) % 2 === 0 && this.dashT <= 0) return;
+    // 구르기: 몸을 말아 굴러간다
+    if (this.rollT > 0 && !this.rollBack) {
+      const rr = (this.facing > 0 ? SPR.playerRoll.R : SPR.playerRoll.L)[this.rollFrame()];
+      ctx.drawImage(rr, Math.round(this.x - 3 - cam.x), Math.round(this.y + 8 - cam.y));
+      if (this.rollInv > 0 && this.sc.time % 4 < 2) { ctx.globalAlpha = 0.35; ctx.drawImage(ghostOf(rr, '#ffffff'), Math.round(this.x - 3 - cam.x), Math.round(this.y + 8 - cam.y)); ctx.globalAlpha = 1; }
+      return;
+    }
     const fr = (this.facing > 0 ? set.R : set.L)[this.frame];
     const sx = Math.round(this.x - 3 - cam.x), sy = Math.round(this.y - 2 - cam.y);
     // 무기 (뒤)
@@ -240,6 +429,8 @@ class Player {
       ang = p < 0.25 ? -2.4 : p < 0.6 ? lerp(-1.6, 0.6, (p - 0.25) / 0.35) : 0.7;
     }
     if (this.frame === 0 || this.frame === 1 || (this.frame >= 2 && this.frame <= 7)) ang = -1.25;
+    if (this.dive > 0) ang = 1.45;            // 내려찍기: 무기를 아래로
+    else if (this.diveLag > 0) ang = 1.1;
     if (this.layer === 'back') { ctx.globalAlpha = 1; }
     ctx.drawImage(fr, sx, sy);
     drawWeapon(ctx, w.kind, hx, hy, ang, this.facing);
@@ -469,7 +660,7 @@ class Enemy {
     }
     if (this.y > lvl.H * TS + 40) { this.dead = true; return; }
     // 접촉 피해
-    if (this.dmg > 0 && !(this.def.ai === 'sleeper' && !this.awake) && sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx)) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
+    if (this.dmg > 0 && !(this.def.ai === 'sleeper' && !this.awake) && sameLayer && overlap(this, p) && p.hurt(this.dmg, this.san, this.cx, (this.lungeT > 0 || this.def.ai === 'watcher') ? 'attack' : 'body')) sc.applyHitEffect(ENEMY_HIT_EFFECT[this.type]);
   }
 
   hurt(dmg, dir, stun = 0, crit = false) {

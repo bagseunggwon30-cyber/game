@@ -84,7 +84,7 @@ class Boss {
     this.x = clamp(this.x, this.arena.x0 + 2, this.arena.x1 - this.w - 2);
     this.y = clamp(this.y, this.ceilY + 8, this.arena.floorY - this.h);
     // 접촉
-    if (p.layer === 'back' && this.alpha > 0.5 && overlap(this.hitbox(), p) && p.hurt(this.dmg, 6, this.cx)) sc.applyHitEffect('terror');
+    if (p.layer === 'back' && this.alpha > 0.5 && overlap(this.hitbox(), p) && p.hurt(this.dmg, 6, this.cx, this.state === 'pat' && ['dash', 'slam', 'teleport'].includes(this.pat) ? 'attack' : 'body')) sc.applyHitEffect('terror');
   }
 
   choosePattern() {
@@ -249,11 +249,11 @@ class Boss {
     const sc = this.sc, p = sc.player;
     for (const h of this.hazards) {
       h.t--;
-      if (h.type === 'beam' && p.layer === 'back' && Math.abs(p.cy - h.y) < 12 && p.hurt(this.dmg, 8, this.cx)) sc.applyHitEffect(this.def.eff);
+      if (h.type === 'beam' && p.layer === 'back' && Math.abs(p.cy - h.y) < 12 && p.hurt(this.dmg, 8, this.cx, 'attack')) sc.applyHitEffect(this.def.eff);
       if (h.type === 'train') {
         h.x += h.dir * 9;
         const box = { x: h.x, y: this.arena.floorY - 40, w: 120, h: 40 };
-        if (p.layer === 'back' && overlap(box, p) && p.hurt(this.dmg + 8, 10, h.x + 60)) sc.applyHitEffect('terror');
+        if (p.layer === 'back' && overlap(box, p) && p.hurt(this.dmg + 8, 10, h.x + 60, 'attack')) sc.applyHitEffect('terror');
         if ((h.dir > 0 && h.x > this.arena.x1 + 10) || (h.dir < 0 && h.x < this.arena.x0 - 130)) h.t = 0;
         if (sc.time % 3 === 0) Gfx.shake(2, 3);
       }

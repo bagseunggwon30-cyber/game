@@ -10,7 +10,7 @@ const KEYMAP = {
   flip: ['KeyC', 'KeyK', 'T_c', 'G_y'],
   item: ['KeyV', 'KeyL', 'T_d', 'G_rb'],
   cycle: ['KeyQ', 'Tab', 'G_lb'],
-  dash: ['ShiftLeft', 'ShiftRight', 'G_b', 'G_lt', 'G_rt'],
+  dash: ['ShiftLeft', 'ShiftRight', 'T_e', 'G_b', 'G_lt', 'G_rt'],
   interact: ['ArrowUp', 'KeyW', 'KeyE', 'T_up', 'G_up'],
   confirm: ['KeyZ', 'Enter', 'Space', 'KeyE', 'T_a', 'G_a'],
   cancel: ['KeyX', 'Escape', 'Backspace', 'T_b', 'G_b'],

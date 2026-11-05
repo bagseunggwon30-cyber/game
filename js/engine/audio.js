@@ -132,6 +132,11 @@ const Sound = {
       case 'chime': this.tone(1568, 0.5, 'sine', 0.1); this.tone(1318, 0.7, 'sine', 0.08, 0, 0.16); break;
       case 'buzz': this.tone(120, 0.25, 'sawtooth', 0.05); this.noise(0.2, 0.06, 4000, 2); break;
       case 'steps': this.noise(0.07, 0.18, 300, 2); this.noise(0.07, 0.14, 260, 2, 0.32); break;
+      case 'roll': this.noise(0.16, 0.12, 900, 0.8, 0, 'bandpass'); this.tone(320, 0.1, 'triangle', 0.04, -160); break;
+      case 'step': this.noise(0.06, 0.12, 700, 1); this.tone(260, 0.06, 'triangle', 0.03, 120); break;
+      case 'sprint': this.noise(0.12, 0.08, 1600, 0.8, 0, 'bandpass'); this.noise(0.05, 0.08, 400, 1, 0.06); break;
+      case 'dive': this.tone(900, 0.22, 'sine', 0.05, -700); this.noise(0.2, 0.08, 3000, 1, 0, 'highpass'); break;
+      case 'dodge': this.tone(1760, 0.18, 'sine', 0.06, -600); this.tone(2640, 0.25, 'sine', 0.035, -900, 0.05); this.noise(0.12, 0.06, 6000, 1, 0, 'highpass'); break;
       case 'static':
         this.noise(0.18 + Math.random() * 0.2, 0.12, 3000 + Math.random() * 3000, 0.6, 0, 'highpass');
         this.tone(2400 + Math.random() * 1200, 0.05, 'square', 0.03, -800, 0.05);
