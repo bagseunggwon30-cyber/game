@@ -52,6 +52,9 @@ function newState() {
     rentDiscount: 0,
     rentMul: 1,
     cycle: 1,
+    clock: 9 * 60,          // 게임 속 시각 (분). 자정을 넘기면 24*60 이상
+    pickup: null,           // { job, at } 예약된 밴 픽업
+    strikes: 0,             // 노쇼 누적 (3회 → 협회 징계 임무)
     codex: { enemy: {}, boss: {}, art: {}, meme: {}, place: {} },
     codexClaimed: [],
   };
@@ -246,7 +249,7 @@ function storyJobFor(s) {
   return {
     id: sm.id, theme: sm.theme, obj: sm.obj, diff: sm.diff, pay: sm.pay, title: sm.title,
     stages: sm.stages, finalObj: sm.finalObj, jammed: sm.jammed,
-    seed: 1000 + s.storyStage * 77, story: sm.id, locked: wait > 0 || !reqOk,
+    seed: 1000 + s.storyStage * 77, story: sm.id, locked: wait > 0 || !reqOk, pickupAt: 21 * 60,
     reqText: wait > 0 ? `${wait}일 뒤에 의뢰가 들어온다` + (reqOk ? '' : ` · ${sm.reqText}`) : sm.reqText,
   };
 }
@@ -265,6 +268,7 @@ function genJobs(s) {
     jobs.push(makeJob(s, rng, themes[i], obj, rng.int(lo, hi)));
   }
   jobs.sort((a, b) => a.diff - b.diff);
+  for (const j of jobs) j.pickupAt = rng.pick(PICKUP_SLOTS);
   // 꿀알바 (근무 수칙)
   if (s.storyStage >= 1 && s.day >= 3 && rng.chance(0.6)) {
     const t = rng.pick(ch.themes.filter((k) => RULE_SCENES[k]));
@@ -301,6 +305,7 @@ function genJobs(s) {
     j.jammed = true;
     jobs.push(j);
   }
+  for (const j of jobs) if (j.pickupAt == null) j.pickupAt = rng.pick(PICKUP_SLOTS);
   return jobs;
 }
 
@@ -348,6 +353,8 @@ function advanceDay(s) {
   s.day++;
   s.workedToday = false;
   s.timeOfDay = 'day';
+  s.clock = 9 * 60;
+  s.pickup = null;
   addSuspicion(s, -4);
   // 월세 (챕터가 오를수록 비싸진다)
   if (s.day >= s.rentDue) {

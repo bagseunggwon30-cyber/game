@@ -21,7 +21,7 @@ class MissionScene {
       tutorial: this.story && this.story.tutorial, doc: this.story && (!this.deep || this.deep.stage === this.deep.stages) ? this.story.doc : null, randomDoc, doc2: ngDoc,
       weekMod: this.s.weekMod, rules: job.rules, patrol: job.patrol,
       shrine: !job.rules && !(this.story && this.story.tutorial) && (!!this.deep || job.seed % 10 < 6),
-      boss: this.story && this.story.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
+      boss: (this.story && this.story.boss) || job.boss, extraArt: this.D.m.extraArt + (this.s.weekMod === 'boom' ? 1 : 0), jammed: !!job.jammed,
     });
     this.lvl = this.gen.lvl;
     this.tiles = buildTiles(job.theme);
@@ -942,7 +942,10 @@ class MissionScene {
     if (this.deep && result === 'success') this.run.stagesCleared = this.deep.stages;
     const deep = this.deep ? { cleared: this.run.stagesCleared || 0, stages: this.deep.stages } : null;
     if (this.rule) this.run.ruleViol = this.rule.viol;
-    Game.fadeTo(() => Game.setScene(new ResultScene(this.job, result, this.run, { sanDeath: p.san <= 0, deep })));
+    const toResult = () => Game.setScene(new ResultScene(this.job, result, this.run, { sanDeath: p.san <= 0, deep }));
+    // 쓰러지면 병원으로, 아니면 밴(서브 의뢰는 버스)을 타고 돌아온다
+    if (result === 'fail') Game.fadeTo(toResult);
+    else Game.fadeTo(() => Game.setScene(new VanScene(this.job, 'back', { then: toResult })));
   }
 
   die() {

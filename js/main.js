@@ -24,7 +24,7 @@ const Game = {
     if (this.toasts.length > 4) this.toasts.shift();
   },
   fadeTo(cb, frames = 22) {
-    if (this.fade.dir !== 0) return;
+    if (this.fade.dir === 1) return;          // 이미 어두워지는 중이면 무시 (밝아지는 중이면 다시 어두워진다)
     this.fade.dir = 1; this.fade.speed = 1 / frames; this.fade.cb = cb;
   },
 

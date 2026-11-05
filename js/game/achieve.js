@@ -36,6 +36,7 @@ const ACHIEVEMENTS = {
   noClap: { name: '고요한 발걸음', desc: '손뼉을 한 번도 치지 않고 암흑 작업을 마쳤다.', skin: 'silent' },
   escortDone: { name: '배웅', desc: '길 잃은 아이를 입구까지 데려다주었다.' },
   chaseDone: { name: '뒤돌아보지 않기', desc: '추격에서 한 번도 붙잡히지 않고 탈출했다.', skin: 'runner' },
+  forcedClear: { name: '징계 완수', desc: '협회의 징계 임무를 살아서 마쳤다.', skin: 'agent' },
   guardFree: { name: '30년 만의 퇴근', desc: '경비 반장 최씨의 부탁을 모두 들어주었다.', skin: 'guard' },
 };
 // 외형: 업적으로 풀린다 (기기 전체 공통)
@@ -53,6 +54,7 @@ const SKINS = {
   shade: { name: '그림자', pal: PAL.shadow },
   silent: { name: '무음 작업복', pal: { vest: '#3a3a4a', vestDark: '#2a2a36', strip: '#9ae8ff', cap: '#1a1a24', capDark: '#101018', logo: '#9ae8ff' } },
   runner: { name: '야광 러너', pal: { vest: '#ff7a2a', vestDark: '#c85a1a', strip: '#fff2c8', cap: '#2a2230', capDark: '#1a141e', logo: '#ff7a2a' } },
+  agent: { name: '협회 검은 정장', pal: { vest: '#1a1a20', vestDark: '#0e0e14', strip: '#c8202e', cap: '#0e0e14', capDark: '#08080c', logo: '#c8202e', shirt: '#e8e8f0' } },
   guard: { name: '야간 경비 제복', pal: { vest: '#4a5a4a', vestDark: '#3a4a3a', strip: '#f2c230', cap: '#2a3a2a', capDark: '#1a2a1a', logo: '#f2c230' } },
 };
 const Achieve = {

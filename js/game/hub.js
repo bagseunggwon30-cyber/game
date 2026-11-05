@@ -114,6 +114,7 @@ class HubScene {
       { x: 404, w: 40, label: '현장 출근', act: () => this.openJobs() },
       { x: 576, w: 40, label: '청명관리', act: () => this.openOffice() },
     ];
+    this.initDispatch();
   }
 
   enter() {
@@ -207,7 +208,13 @@ class HubScene {
     this.cam = lerp(this.cam, clamp(p.x - VW / 2, 0, HUB_W - VW), 0.12);
     this.prompt = null;
     for (const z of this.zones) if (p.x + p.w > z.x && p.x < z.x + z.w) this.prompt = z;
-    if (Input.pressed('interact') && this.prompt) { Sound.play('door'); this.prompt.act(); return; }
+    // 밴이 기다리는 중이면 사무소 앞 = 탑승
+    if (this.van && this.van.st === 'wait' && !this.van.black && this.s.pickup && p.x + p.w > VAN_X - 6 && p.x < VAN_X + 80) this.prompt = { x: VAN_X + 10, w: 54, label: '밴 타기', act: () => this.board(), van: true };
+    if (Input.pressed('interact') && this.prompt) {
+      if (!this.prompt.van) { Sound.play('door'); this.passTime(5); }   // 건물에 들르면 5분이 흐른다
+      this.prompt.act(); return;
+    }
+    this.updateDispatch();
     if (Input.pressed('phone')) { Sound.play('phone'); this.openPhone(); return; }
     if (Input.pressed('pause')) { this.openPhone(); return; }
     const c = this.s.contamination;
@@ -224,6 +231,7 @@ class HubScene {
     const npc = (set, x, face) => { const f = (face > 0 ? set.R : set.L)[Math.floor(this.time / 30) % 2]; ctx.drawImage(f, Math.round(x - cam), HUB_GROUND - 24); };
     npc(SPR.noeul, 356, -1);
     if (storyDone(s, 's1') && !s.flags.minjaeGone) npc(SPR.min, 548, 1);
+    this.drawDispatch(ctx, cam);
     // 플레이어
     const p = this.player;
     const fr = (p.facing > 0 ? SPR.player.R : SPR.player.L)[p.frame];
@@ -257,7 +265,14 @@ class HubScene {
     // 좌상단: 날짜 / 돈 / 월세
     const night = s.timeOfDay === 'night';
     Gfx.text(ctx, `DAY ${s.day}`, 8, 6, C.text, { bold: true });
-    UI.pill(ctx, 14 + Gfx.measure(ctx, `DAY ${s.day}`, { bold: true }), 7, night ? '밤' : '낮', night ? '#8a9aff' : '#f2c230');
+    UI.pill(ctx, 14 + Gfx.measure(ctx, `DAY ${s.day}`, { bold: true }), 7, clockText(s.clock), night ? '#8a9aff' : '#f2c230');
+    // 배차 / 노쇼
+    if (s.pickup) {
+      const left = s.pickup.at - s.clock;
+      const txt = left > 0 ? `픽업 ${clockText(s.pickup.at)} · 사무소 앞 (${left}분)` : `밴 대기 중! 출발까지 ${PICKUP_WAIT + left}분`;
+      UI.pill(ctx, VW / 2, 31, txt, left <= 10 && this.time % 30 < 18 ? '#ff8a8a' : COL.yellow, { align: 'center', dot: true });
+    }
+    if (s.strikes) UI.pill(ctx, VW / 2, s.pickup ? 45 : 31, `노쇼 ${s.strikes}/${STRIKE_MAX}`, '#ff5a6a', { align: 'center' });
     Gfx.text(ctx, won(s.money), 8, 21, '#9ae89a');
     const left = s.rentDue - s.day;
     const rentNow = Math.round(rentFor(s) * (s.rentMul || 1) * (1 - (s.rentDiscount || 0)) / 1000) * 1000;
@@ -294,7 +309,7 @@ class HubScene {
   }
 
   // ───────────── 메뉴들 ─────────────
-  phoneTime() { return `DAY ${this.s.day} ${this.s.timeOfDay === 'night' ? '23:40' : '09:12'}`; }
+  phoneTime() { return `DAY ${this.s.day} ${clockText(this.s.clock)}`; }
 
   openPhone() {
     const s = this.s;
@@ -308,7 +323,7 @@ class HubScene {
       { name: '업적', icon: 'trophy', badge: null, desc: `업적 ${Object.keys(ACHIEVEMENTS).filter((id) => Achieve.has(id)).length}/${Object.keys(ACHIEVEMENTS).length} — 달성하면 외형이 풀린다(옥탑방 옷장).`, open: () => openAchievements() },
       { name: '도감', icon: 'codex', badge: codexClaimable(s) ? '!' : null, desc: `현장 기록 ${codexCount(s)}/${codexTotal()} — 마주친 존재, 아티팩트, 밈, 장소.`, open: () => openCodex(s) },
       { name: '설정', icon: 'settings', desc: '환경 설정, 조작법, 저장하고 타이틀로.', open: () => this.openSettings() },
-    ], night ? '23:40' : '09:12', `DAY ${s.day} · ${night ? '밤' : '낮'}`));
+    ], clockText(s.clock), `DAY ${s.day} · ${night ? '밤' : '낮'}` + (s.pickup ? ` · 픽업 ${clockText(s.pickup.at)}` : '')));
   }
 
   openSettings() {
@@ -327,9 +342,19 @@ class HubScene {
   openJobs() {
     const s = this.s;
     const jobs = currentJobs(s);
+    const head = [];
+    if (s.pickup) {
+      const P = s.pickup;
+      head.push({ label: `▶ 배차 대기: ${clockText(P.at)} 청명관리 앞`, sub: P.job.title.replace(/^\[.*?\] /, ''), subCol: COL.yellow, right: P.at - s.clock > 30 ? '시간 보내기' : '',
+        desc: P.at - s.clock > 30 ? '선택하면 픽업 30분 전까지 시간을 보낸다.' : '곧 밴이 온다. 사무소 앞으로 가자.',
+        onSelect: () => { if (P.at - s.clock > 30) { Game.modals = []; this.passTime(P.at - 30 - s.clock); Game.toast(`${clockText(s.clock)} — 시간을 보냈다`, COL.cyan); } } });
+      head.push({ label: '  배차 취소', sub: '신뢰 -2', subCol: '#ff8a8a', desc: '픽업을 취소한다. 노쇼는 아니지만 신뢰가 조금 깎인다.', onSelect: () => { s.pickup = null; s.trust = Math.max(0, s.trust - 2); this.van = null; Game.modals = []; Game.toast('배차를 취소했다.', '#ff8a8a'); saveGame(s); } });
+    } else if (!s.workedToday) {
+      head.push({ label: '▶ 한 시간 보내기', sub: `지금 ${clockText(s.clock)}`, subCol: COL.cyan, desc: '빈둥거리며 시간을 보낸다. (밴 픽업은 18:00~22:00 사이)', onSelect: () => { Game.modals = []; this.passTime(60); Game.toast(`${clockText(s.clock)}`, COL.cyan); } });
+    }
     Game.push(new Menu({
-      title: '틈새 · 오늘의 알바', titleRight: 'DAY ' + s.day, desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#f2c230',
-      items: jobs.map((j) => {
+      title: '틈새 · 오늘의 알바', titleRight: clockText(s.clock), desc: true, phone: true, phoneTime: this.phoneTime(), appCol: '#f2c230',
+      items: head.concat(jobs.map((j) => {
         const meme = MEMES[THEMES[j.theme].meme];
         const stars = '★'.repeat(j.diff) + '☆'.repeat(5 - j.diff);
         const locked = j.locked;
@@ -338,7 +363,7 @@ class HubScene {
           sub: j.side ? `서브 의뢰 · ${SPEAKERS[SIDE_BY_ID[j.side].giver].name} · ${stars}` : j.ruleJob ? `근무 수칙 ${j.rules.length}개 · ${THEMES[j.theme].short} · ${stars}` :
             j.jammed ? `발신처 확인 불가 · ${THEMES[j.theme].short} · ${stars}` : j.obj === 'deep' ? `심층 ${j.stages}층 · ${THEMES[j.theme].short} · ${stars}` : `${(OBJECTIVES[j.obj] || { name: '최종' }).name} · ${THEMES[j.theme].short} · ${stars}`,
           subCol: j.side ? '#ff8a7a' : j.ruleJob ? COL.yellow : j.jammed ? '#62d6e8' : (OBJECTIVES[j.obj] || { col: '#ff5a6a' }).col,
-          right: j.obj === 'deep' ? '최대 ' + won(Math.round(j.pay * (0.65 + 0.3 * j.stages) / 1000) * 1000) : j.pay ? won(j.pay) : '???',
+          right: (needsVan(j) && j.pickupAt ? clockText(j.pickupAt) + ' · ' : '') + (j.obj === 'deep' ? '최대 ' + won(Math.round(j.pay * (0.65 + 0.3 * j.stages) / 1000) * 1000) : j.pay ? won(j.pay) : '???'),
           col: j.story ? (locked ? COL.dark : COL.pink) : null,
           disabled: locked || s.workedToday,
           desc: locked ? `[잠김] ${j.reqText}` : s.workedToday ? '오늘은 이미 일했다. 옥탑방에서 자고 내일 다시 보자.' :
@@ -349,16 +374,31 @@ class HubScene {
             j.jammed ? `출처를 알 수 없는 공고. 보수는 1.6배지만 현장 전체에 통신 교란이 깔려 있다. (${(OBJECTIVES[j.obj] || { name: '최종' }).name})` : `${THEMES[j.theme].name} — 괴담 "${meme.name}": ${meme.desc}`,
           onSelect: () => this.confirmJob(j),
         };
-      }),
+      })),
     }));
   }
 
   confirmJob(job) {
+    const s = this.s;
+    if (!needsVan(job)) {
+      // 서브 의뢰: 의뢰인의 개인 부탁이라 직접 (버스로) 간다
+      Game.push(new Menu({
+        title: '바로 갈까?', w: 220, desc: true,
+        items: [
+          { label: '버스 타고 간다', desc: `${THEMES[job.theme].name}으로 바로 향한다. 소지품을 확인했는가?`, onSelect: () => { Game.modals = []; s.lastPickupAt = s.clock; Game.fadeTo(() => Game.setScene(new VanScene(job, 'go'))); } },
+          { label: '그만둔다', desc: '조금 더 준비하자.', onSelect: (m) => m.close() },
+        ],
+      }));
+      return;
+    }
+    const late = s.clock > job.pickupAt - 15;
     Game.push(new Menu({
-      title: '출근할까?', w: 200, desc: true,
+      title: '배차를 신청할까?', w: 240, desc: true,
       items: [
-        { label: '출근한다', desc: `${THEMES[job.theme].name}으로 향한다. 소지품을 확인했는가?`, onSelect: () => { Game.modals = []; Game.fadeTo(() => Game.setScene(new MissionScene(job))); } },
-        { label: '그만둔다', desc: '조금 더 준비하자.', onSelect: (m) => m.close() },
+        { label: `배차 신청 — 픽업 ${clockText(job.pickupAt)}`, disabled: !!s.pickup || late,
+          desc: s.pickup ? '이미 다른 배차가 잡혀 있다. 먼저 취소해야 한다.' : late ? '배차 마감. 그 시간엔 이미 늦었다.' : `${clockText(job.pickupAt)}에 청명관리 앞으로 밴이 온다. ${PICKUP_WAIT}분 안에 타지 않으면 노쇼 — 위약금과 신뢰 감소, 3번이면 협회가 온다.`,
+          onSelect: () => { Game.modals = []; this.schedulePickup(job); } },
+        { label: '그만둔다', desc: '조금 더 생각해 보자.', onSelect: (m) => m.close() },
       ],
     }));
   }
@@ -451,21 +491,17 @@ class HubScene {
 
   sleep() {
     const s = this.s;
+    if (s.pickup) {
+      Game.push(new Menu({ title: '배차가 잡혀 있다', w: 240, desc: true, items: [
+        { label: '그래도 잔다', desc: '노쇼가 된다. 위약금과 신뢰 감소.', onSelect: () => { Game.modals = []; s.pickup = null; this.van = null; this.applyNoShow(() => this.goSleep()); } },
+        { label: '아니, 나간다', desc: '', onSelect: (m) => m.close() },
+      ] }));
+      return;
+    }
     Game.push(new Menu({
       title: '잠을 잘까?', w: 200, desc: true,
       items: [
-        { label: '잔다', desc: '다음 날 아침으로 넘어간다.', onSelect: () => {
-          Game.modals = [];
-          Game.fadeTo(() => {
-            const ev = advanceDay(s);
-            s.pendingEvents = (s.pendingEvents || []).concat(ev);
-            s.spawnAt = 96;
-            Game.setScene(new HubScene());
-            Game.toast(`DAY ${s.day}`, COL.yellow);
-            const un = unreadCount(s);
-            if (un) Game.toast(`새 메시지 ${un}개 (V)`, COL.cyan);
-          }, 40);
-        } },
+        { label: '잔다', desc: '다음 날 아침으로 넘어간다.', onSelect: () => this.goSleep() },
         { label: '아직', desc: '', onSelect: (m) => m.close() },
       ],
     }));

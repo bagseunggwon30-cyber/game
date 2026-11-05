@@ -104,7 +104,7 @@ class TitleScene {
     // 플레이어 실루엣
     const f = SPR.player.R[2 + Math.floor(this.t / 7) % 4];
     ctx.drawImage(back ? SPR.follower.R[2 + Math.floor(this.t / 7) % 4] : f, 40, 166);
-    Gfx.text(ctx, 'v1.4', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
+    Gfx.text(ctx, 'v1.5', VW - 6, VH - 12, COL.dark, { small: true, align: 'right' });
     const seenN = endingsSeen().length;
     if (seenN) Gfx.text(ctx, `결말 ${ENDING_ORDER.filter((k) => endingsSeen().includes(k)).length}/${ENDING_ORDER.length}`, 6, 4, COL.dim, { small: true });
   }
@@ -117,9 +117,11 @@ function startGame(carry) {
   Game.state.jobs = genJobs(Game.state);
   Storage.del(SAVE_KEY);
   const ng = !!carry;
+  Game.state.clock = 21 * 60;     // 첫날: 면접을 본 그날 밤 바로 첫 현장
   Game.setScene(new StoryScene(ng ? PROLOGUE_NG : PROLOGUE, (i) => (i >= (ng ? 5 : 7) ? 'office' : 'room'), () => {
     const job = storyJobFor(Game.state);
-    Game.fadeTo(() => Game.setScene(new MissionScene(job)));
+    Game.state.lastPickupAt = Game.state.clock;
+    Game.fadeTo(() => Game.setScene(new VanScene(job, 'go')));
   }));
   Game.state.chapterSeen = 1;
   Game.push(new ChapterCard(ng ? Object.assign({}, CHAPTERS[0], { sub: `${carry.cycle}회차 — 재계약` }) : CHAPTERS[0]));
@@ -216,7 +218,15 @@ class ResultScene {
     const s = this.s, job = this.job, run = this.run;
     const rankBefore = s.lastRank;
     s.workedToday = true;
+    // 돌아온 시각: 픽업 시각 + 이동·작업 시간
+    const base = s.lastPickupAt != null ? s.lastPickupAt : (s.clock || 20 * 60);
+    s.clock = Math.max(s.clock || 0, Math.min(27 * 60, base + 110 + Math.round((run.time || 0) / 3600 * 20)));
     s.timeOfDay = 'night';
+    if (job.forced) {
+      // 협회 징계 임무
+      if (this.result === 'success') { s.strikes = 0; addTrust(s, 8); s.sp = (s.sp || 0) + 2; this.log.push(['징계 완수', '노쇼 기록 말소 · SP +2 · 신뢰 +8', '#ff8a8a']); Achieve.unlock('forcedClear'); }
+      else { s.strikes = 1; s.debt += 100000; this.log.push(['징계 실패', '협회 수습 비용 ₩100,000 (빚) · 노쇼 1회로 남음', '#ff5a6a']); }
+    }
     if ((run.jamTime || 0) > 600) {
       s.phoneGlitch = true;
       s.messages.unshift({ from: 'fakeSeo', text: pickR(FAKE_MESSAGES), day: s.day, read: false, fake: true });
@@ -326,7 +336,7 @@ class ResultScene {
         const s = this.s;
         if (s.lastRank > (this.rankBefore || 0)) s.pendingEvents = (s.pendingEvents || []).concat([{ type: 'rank', rank: s.lastRank }]);
         checkMessages(s);
-        s.spawnAt = 420;
+        s.spawnAt = this.job.side ? 420 : VAN_X + 30;
         Sound.play('select');
         Game.fadeTo(() => Game.setScene(new HubScene()));
         this.step = 'done';

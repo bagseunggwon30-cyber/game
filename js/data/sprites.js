@@ -449,6 +449,20 @@ function buildBossSprites() {
     G.px(c, 43, 36 - f, 8, 1, '#5a5a6a'); G.px(c, 43, 39 - f, 6, 1, '#5a5a6a'); G.px(c, 43, 42 - f, 7, 1, '#5a5a6a');
     G.px(c, 45, 33 - f, 4, 2, '#8a8a9a');
   }));
+  // 목격담 : 수많은 휴대폰 화면이 붙어 만든 키 큰 형체 — 화면마다 누군가 찍은 "그것"
+  SPR.boss.witness = [0, 1, 2].map((f) => G.sprite(48, 66, (c) => {
+    G.px(c, 16, 10, 16, 48, '#1a1826');
+    const phones = [[12, 12], [26, 8], [18, 22], [30, 26], [10, 32], [22, 38], [32, 44], [14, 48], [24, 16], [8, 22], [34, 34]];
+    phones.forEach(([x, y], i) => {
+      const dy = ((i + f) % 3) - 1;
+      G.px(c, x, y + dy, 7, 11, '#0b0b10'); G.px(c, x + 1, y + 1 + dy, 5, 8, i % 3 ? '#d8d0ff' : '#9ae8ff');
+      G.px(c, x + 2, y + 3 + dy, 3, 3, '#1a1826'); G.px(c, x + 3, y + 4 + dy, 1, 1, '#ff2a3a');
+    });
+    G.circle(c, 24, 6, 6, '#d8d0ff'); G.px(c, 20, 4, 3, 2, '#0b0b10'); G.px(c, 25, 4, 3, 2, '#0b0b10'); G.px(c, 21, 8, 6, 1, '#0b0b10');
+    G.px(c, 17, 58, 5, 8, '#1a1826'); G.px(c, 27, 58, 5, 8, '#1a1826');
+    G.line(c, 15, 16, 3, 36 + f, '#1a1826', 3); G.line(c, 33, 16, 45, 34 - f, '#1a1826', 3);
+    G.px(c, 0, 34 + f, 6, 8, '#9ae8ff'); G.px(c, 42, 32 - f, 6, 8, '#9ae8ff');
+  }));
   // 무명 : 이름 칸이 지워진 사원증 수백 장이 엉겨 붙은 형체
   SPR.boss.nameless = [0, 1, 2].map((f) => G.sprite(48, 64, (c) => {
     G.px(c, 14, 14, 20, 40, '#2a2630');
@@ -511,6 +525,7 @@ function buildPortraits() {
     ryu: G.sprite(34, 34, (c) => face(c, { hair: '#6a6a74', skin: '#e2b896', skinShade: '#bf9474', shirt: '#30323e' }, { glasses: true, collar: '#3a3a48' })),
     k: G.sprite(34, 34, (c) => { face(c, { hair: '#2a2a30', skin: '#eac09a', skinShade: '#c99a78', shirt: '#c84a4a' }, { bangs: true, smile: true }); G.px(c, 7, 2, 20, 5, '#3a3a48'); G.px(c, 5, 12, 3, 7, '#1a1a24'); G.px(c, 26, 12, 3, 7, '#1a1a24'); G.px(c, 6, 6, 1, 7, '#1a1a24'); G.px(c, 27, 6, 1, 7, '#1a1a24'); }),
     landlord: G.sprite(34, 34, (c) => face(c, { hair: '#8a8a8a', skin: '#e8b890', skinShade: '#c09070', shirt: '#7a5a8a' }, { tired: true, smile: false })),
+    enforcer: G.sprite(34, 34, (c) => { face(c, { hair: '#14141a', skin: '#d8c0b0', skinShade: '#b8a090', shirt: '#14141a' }, { collar: '#2a2a30', glasses: true }); G.px(c, 9, 14, 16, 3, '#0b0b10'); }),
     guard: G.sprite(34, 34, (c) => { face(c, { hair: '#5a5a5a', skin: '#d8a880', skinShade: '#b88860', shirt: '#4a5a4a' }, { collar: '#2a3a2a', tired: true }); G.px(c, 7, 2, 20, 4, '#2a3a2a'); G.px(c, 6, 5, 22, 2, '#1a2a1a'); G.px(c, 15, 3, 4, 2, '#f2c230'); }),
   };
 }
